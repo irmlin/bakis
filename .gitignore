@@ -98,6 +98,7 @@ ENV/
 *.jpg
 *.onnx
 *.engine
+docker-compose.yml
 
 ######################
 # Node               #
