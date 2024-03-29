@@ -42,4 +42,3 @@ class MediaController:
         @router.websocket("/video/stream/{video_id}")
         async def stream_video(video_id: int, websocket: WebSocket):
             await self.media_service.stream_video(video_id, websocket)
-

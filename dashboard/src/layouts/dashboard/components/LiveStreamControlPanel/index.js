@@ -1,12 +1,14 @@
 import MDBox from "Components/MDBox";
 import MDButton from "Components/MDButton";
-import {useRef, useState} from "react";
+import {useState} from "react";
 import {Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle} from "@mui/material";
-import MDInput from "../../../../Components/MDInput";
-import {uploadSource} from "../../../../Services/MediaService";
+import MDInput from "Components/MDInput";
+import {startStream, uploadSource} from "Services/MediaService";
 
 
-export default function LiveStreamControlPanel() {
+export default function LiveStreamControlPanel(props) {
+
+    const { newSourceTrigger, useNewSourceTrigger } = props;
 
     const [sourceDialogOpen, setSourceDialogOpen] = useState(false);
     const [source, setSource] = useState({
@@ -50,6 +52,20 @@ export default function LiveStreamControlPanel() {
         return source.file && source.title && source.description;
     }
 
+    const startStreamInServer = async (video_id) => {
+        const responseStartStream = await startStream(video_id);
+        if (responseStartStream) {
+            if (responseStartStream.status === 200) {
+                console.log(`Video ID ${video} is now being streamed.`)
+                useNewSourceTrigger(!newSourceTrigger);
+            } else {
+                console.error('Error on triggering stream: ', responseStartStream);
+            }
+        } else {
+            console.error('No response from the server while triggering stream!');
+        }
+    }
+
     const onStartAnalysisButtonClick = async () => {
         if (!validateForm()) {
             return;
@@ -62,19 +78,16 @@ export default function LiveStreamControlPanel() {
         formData.append('description', source.description);
         formData.append('video_file', source.file);
 
-        try {
-            console.log(formData);
-            const response = await uploadSource(formData);
-
-            // Check if the request was successful
-            if (response.status === 200) {
-                console.log('Video uploaded successfully:', response);
+        const responseUpload = await uploadSource(formData);
+        if (responseUpload) {
+            if (responseUpload.status === 200) {
+                console.log(`Video ID ${responseUpload.data.id} uploaded successfully:`);
+                await startStreamInServer(responseUpload.data.id);
             } else {
-                // Handle error
-                console.error('Error uploading video:', response);
+                console.error('Error uploading video:', responseUpload);
             }
-        } catch (error) {
-            console.error('Error uploading video:', error);
+        } else {
+            console.error('No response from the server while uploading video!');
         }
     }
 

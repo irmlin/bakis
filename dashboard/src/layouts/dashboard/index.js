@@ -13,7 +13,7 @@ Coded by www.creative-tim.com
 * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 */
 
-import { useEffect, useRef } from "react";
+import {useEffect, useRef, useState} from "react";
 
 // @mui material components
 import Grid from "@mui/material/Grid";
@@ -38,9 +38,11 @@ import Projects from "layouts/dashboard/components/Projects";
 import OrdersOverview from "layouts/dashboard/components/OrdersOverview";
 import VideoPlayer from "Components/Media/VideoPlayer";
 import LiveStreamControlPanel from "./components/LiveStreamControlPanel";
+import LiveStreamPanel from "./components/LiveStreamPanel";
 
 function Dashboard() {
   const { sales, tasks } = reportsLineChartData;
+  const [newSourceTrigger, useNewSourceTrigger] = useState(true);
 
   // Video player settings
   const playerRef = useRef(null);
@@ -73,21 +75,23 @@ function Dashboard() {
   return (
     <DashboardLayout>
       <DashboardNavbar />
-
       <LiveStreamControlPanel
-
+        newSourceTrigger={newSourceTrigger}
+        useNewSourceTrigger={useNewSourceTrigger}
+      />
+      <LiveStreamPanel
+        newSourceTrigger={newSourceTrigger}
       />
 
-        <MDBox mt={4.5}>
-          <Grid container spacing={3}>
-            <Grid item xs={12} md={6} lg={4}>
-              <MDBox mb={3}>
-                <VideoPlayer options={videoPlayerOptions} onReady={handlePlayerReady} />
-              </MDBox>
-            </Grid>
+      <MDBox mt={4.5}>
+        <Grid container spacing={3}>
+          <Grid item xs={12} md={6} lg={4}>
+            <MDBox mb={3}>
+              <VideoPlayer options={videoPlayerOptions} onReady={handlePlayerReady} />
+            </MDBox>
           </Grid>
-        </MDBox>
-
+        </Grid>
+      </MDBox>
 
       <MDBox py={3}>
         <Grid container spacing={3}>

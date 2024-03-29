@@ -8,3 +8,12 @@ export const uploadSource = async (data) => {
       return err.response;
   }
 };
+
+export const startStream = async (video_id) => {
+  try {
+    return await axiosInstance.get(`/media/video/inference/${video_id}`);
+  } catch (err) {
+      console.error("Failed to start stream for source ID: ", video_id, err);
+      return err.response;
+  }
+};
