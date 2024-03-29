@@ -10,7 +10,7 @@ from src.database import engine
 from src.models import Base
 from src import root_router
 
-# from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 
 
 
@@ -24,12 +24,15 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# app.add_middleware(CORSMiddleware,
-#                    allow_origins=ORIGINS,
-#                    allow_credentials=True,
-#                    allow_methods=["*"],
-#                    allow_headers=["*"],
-#                    )
+# Allow requests from http://localhost:3000
+# Good for developement stage
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["*"],
+)
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(root_router)

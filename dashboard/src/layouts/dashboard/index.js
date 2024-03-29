@@ -13,6 +13,8 @@ Coded by www.creative-tim.com
 * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 */
 
+import { useEffect, useRef } from "react";
+
 // @mui material components
 import Grid from "@mui/material/Grid";
 
@@ -34,13 +36,59 @@ import reportsLineChartData from "layouts/dashboard/data/reportsLineChartData";
 // Dashboard components
 import Projects from "layouts/dashboard/components/Projects";
 import OrdersOverview from "layouts/dashboard/components/OrdersOverview";
+import VideoPlayer from "Components/Media/VideoPlayer";
+import LiveStreamControlPanel from "./components/LiveStreamControlPanel";
 
 function Dashboard() {
   const { sales, tasks } = reportsLineChartData;
 
+  // Video player settings
+  const playerRef = useRef(null);
+  const videoPlayerOptions = {
+    autoplay: false,
+    controls: true,
+    responsive: true,
+    fluid: true,
+    sources: [{
+      src: 'video2.mp4',
+      type: 'video/mp4'
+    }]
+  };
+
+  const handlePlayerReady = (player) => {
+    playerRef.current = player;
+
+    // You can handle player events here, for example:
+    player.on('waiting', () => {
+      // console.log('waiting')
+      // videojs.log('player is waiting');
+    });
+
+    player.on('dispose', () => {
+      // console.log('disposing')
+      // videojs.log('player will dispose');
+    });
+  };
+
   return (
     <DashboardLayout>
       <DashboardNavbar />
+
+      <LiveStreamControlPanel
+
+      />
+
+        <MDBox mt={4.5}>
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6} lg={4}>
+              <MDBox mb={3}>
+                <VideoPlayer options={videoPlayerOptions} onReady={handlePlayerReady} />
+              </MDBox>
+            </Grid>
+          </Grid>
+        </MDBox>
+
+
       <MDBox py={3}>
         <Grid container spacing={3}>
           <Grid item xs={12} md={6} lg={3}>
