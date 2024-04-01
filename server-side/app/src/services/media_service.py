@@ -13,6 +13,7 @@ from ..models import Video
 from ..schemas import VideoCreate
 from ..socket import WebSocketManager
 from ..utilities.file_size import FileSize
+from ..models.enums import SourceStatus
 
 
 class MediaService:
@@ -59,8 +60,12 @@ class MediaService:
             raise HTTPException(status_code=404, detail=f'Video with id {video_id} not found')
         if not self.__video_file_exists(db_video.file_path):
             raise HTTPException(status_code=404, detail=f'Video (id={video_id}) file not found')
-        # background_tasks.add_task(self.socket_manager.add_stream, video_id, db_video.file_path)
-        await self.socket_manager.add_stream(video_id, db_video.file_path)
+        background_tasks.add_task(self.socket_manager.add_stream, video_id, db_video.file_path)
+        # await self.socket_manager.add_stream(video_id, db_video.file_path)
+
+        # Update source status
+        db_video.status = SourceStatus.PROCESSING
+        db.commit()
         return {'detail': f'Video (id={video_id}) is being streamed.'}
 
     async def stream_video(self, video_id: int, websocket: WebSocket):
@@ -85,8 +90,11 @@ class MediaService:
     def get_video_by_id(self, db: Session, video_id: int):
         return db.query(Video).filter(Video.id == video_id).first()
 
-    def get_videos(self, db: Session):
+    def get_all_videos(self, db: Session):
         return db.query(Video).all()
+
+    def get_live_videos(self, db: Session):
+        return db.query(Video).filter(Video.status == SourceStatus.PROCESSING).all()
 
     def __video_file_exists(self, file_path: str):
         return os.path.exists(file_path)

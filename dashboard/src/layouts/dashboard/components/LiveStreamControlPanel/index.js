@@ -8,7 +8,7 @@ import {startStream, uploadSource} from "Services/MediaService";
 
 export default function LiveStreamControlPanel(props) {
 
-    const { newSourceTrigger, useNewSourceTrigger } = props;
+    const { newSourceTrigger, onNewSourceTrigger } = props;
 
     const [sourceDialogOpen, setSourceDialogOpen] = useState(false);
     const [source, setSource] = useState({
@@ -56,8 +56,8 @@ export default function LiveStreamControlPanel(props) {
         const responseStartStream = await startStream(video_id);
         if (responseStartStream) {
             if (responseStartStream.status === 200) {
-                console.log(`Video ID ${video} is now being streamed.`)
-                useNewSourceTrigger(!newSourceTrigger);
+                console.log(`Video ID ${video_id} is now being streamed.`)
+                onNewSourceTrigger(!newSourceTrigger);
             } else {
                 console.error('Error on triggering stream: ', responseStartStream);
             }

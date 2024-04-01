@@ -17,3 +17,12 @@ export const startStream = async (video_id) => {
       return err.response;
   }
 };
+
+export const getLiveStreams = async () => {
+  try {
+    return await axiosInstance.get(`/media/video/stream`);
+  } catch (err) {
+      console.error("Failed to fetch all live streams: ", err);
+      return err.response;
+  }
+}

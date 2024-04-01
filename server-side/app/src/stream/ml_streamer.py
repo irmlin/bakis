@@ -29,18 +29,14 @@ class MLStreamer(BaseStreamer):
 
             async with self.connections_lock:
                 for ws in self.connections:
-                    # try:
-                    #     await ws.send_text(f'Sending {i}!')
-                    # except Exception as e:
-                    #     print(f"Error sending data to WebSocket: {e}")
                     try:
-                        print(i)
                         await ws.send_bytes(enc_frame.tobytes())
                     except Exception as e:
                         print(f"Error sending data to WebSocket: {e}")
             await asyncio.sleep(0)
 
-        # video_capture.release()
+        print(f'{file_path} is finished')
+        video_capture.release()
 
     @staticmethod
     def __simulate_ml_inference(frame: np.ndarray):

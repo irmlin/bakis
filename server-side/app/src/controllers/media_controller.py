@@ -23,13 +23,17 @@ class MediaController:
             video_create = VideoCreate(title=title, description=description)
             return self.media_service.upload_video(db, video_create, video_file)
 
+        @router.get("/video/stream")
+        def get_live_videos(db: Session = Depends(get_db)):
+            return self.media_service.get_live_videos(db)
+
         @router.get("/video/{video_id}")
         def get_video(video_id: int, db: Session = Depends(get_db)):
             return self.media_service.get_video_by_id(db, video_id)
 
         @router.get("/video")
-        def get_videos(db: Session = Depends(get_db)):
-            return self.media_service.get_videos(db)
+        def get_all_videos(db: Session = Depends(get_db)):
+            return self.media_service.get_all_videos(db)
 
         @router.delete("/video/{video_id}")
         def delete_video(video_id: int, db: Session = Depends(get_db)):

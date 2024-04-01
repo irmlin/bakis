@@ -13,7 +13,7 @@ Coded by www.creative-tim.com
 * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 */
 
-import {useEffect, useRef, useState} from "react";
+import {useRef, useState} from "react";
 
 // @mui material components
 import Grid from "@mui/material/Grid";
@@ -40,9 +40,9 @@ import VideoPlayer from "Components/Media/VideoPlayer";
 import LiveStreamControlPanel from "./components/LiveStreamControlPanel";
 import LiveStreamPanel from "./components/LiveStreamPanel";
 
-function Dashboard() {
+export default function Dashboard() {
   const { sales, tasks } = reportsLineChartData;
-  const [newSourceTrigger, useNewSourceTrigger] = useState(true);
+  const [newSourceTrigger, onNewSourceTrigger] = useState(true);
 
   // Video player settings
   const playerRef = useRef(null);
@@ -77,7 +77,7 @@ function Dashboard() {
       <DashboardNavbar />
       <LiveStreamControlPanel
         newSourceTrigger={newSourceTrigger}
-        useNewSourceTrigger={useNewSourceTrigger}
+        onNewSourceTrigger={onNewSourceTrigger}
       />
       <LiveStreamPanel
         newSourceTrigger={newSourceTrigger}
@@ -211,5 +211,3 @@ function Dashboard() {
     </DashboardLayout>
   );
 }
-
-export default Dashboard;
