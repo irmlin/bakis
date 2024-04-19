@@ -1,18 +1,15 @@
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-import uvicorn
-from src.settings import HOST, PORT
 from contextlib import asynccontextmanager
-import os
-# from src.controllers import stream_router
-from src.settings import HOST, PORT
+
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+
+from src import root_router
 from src.database import engine
 from src.models import Base
-from src import root_router
-
-from fastapi.middleware.cors import CORSMiddleware
-
-
+# from src.controllers import stream_router
+from src.settings import HOST, PORT
 
 
 @asynccontextmanager
