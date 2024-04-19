@@ -18,13 +18,11 @@ export default function LiveStreamPanel(props) {
             const response = await getLiveStreams();
             if (response) {
                 if (response.status === 200) {
-                    console.log("Currently all streamed: ", response.data);
                     const newStreams = response.data.filter(obj => !isObjectInArray(liveStreams, obj.id));
                     for (const stream of newStreams) {
                         stream["wsUrl"] = `ws://localhost:8000/api/media/video/stream/${stream.id}`;
                     }
                     setLiveStreams([...liveStreams, ...newStreams]);
-                    console.log('new streamed: ', newStreams);
                 } else {
                     console.error('Error on fetching live streams: ', response);
                 }

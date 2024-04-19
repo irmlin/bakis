@@ -3,23 +3,22 @@ import multiprocessing
 import os
 import queue
 import shutil
+import sys
+import threading
+import traceback
 import uuid
 from multiprocessing import Queue
 from typing import List, Dict
 
-import cv2
-import numpy as np
-from fastapi import UploadFile, HTTPException, Depends, WebSocket, WebSocketDisconnect, BackgroundTasks
-from fastapi.responses import StreamingResponse
+from fastapi import UploadFile, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks
 from sqlalchemy.orm import Session
 
-from ..dependencies import get_db
 from ..models import Video
+from ..models.enums import SourceStatus
 from ..schemas import VideoCreate
 from ..socket import WebSocketManager
-from ..utilities.file_size import FileSize
-from ..models.enums import SourceStatus
 from ..stream import WorkerStreamReader
+from ..utilities.file_size import FileSize
 
 
 class MediaService:
@@ -29,17 +28,17 @@ class MediaService:
         self.file_size_limit_bytes = FileSize.GB
         self.socket_manager = WebSocketManager()
 
-        # Data traffic from processing job to this
+        # Data traffic from processing job to app
         self.__connections: Dict[int, List[WebSocket]] = {}
         self.__connections_lock: asyncio.Lock = asyncio.Lock()
         self.__frames_queue = Queue(maxsize=500)
+        self.__job = None
+        self.__job_started = False
 
-        # Data traffic from current process to processing job
+        # Data traffic from app to processing job
         self.__manager = multiprocessing.Manager()
         self.__shared_sources_dict = self.__manager.dict()
-        self.__shared_connections_dict = self.__manager.dict()
         self.__worker_stream_reader = WorkerStreamReader(shared_sources_dict=self.__shared_sources_dict,
-                                                         shared_connections_dict=self.__shared_connections_dict,
                                                          on_done=self.__frames_queue.put)
 
         self.__worker_stream_reader.start()
@@ -64,46 +63,48 @@ class MediaService:
         db.add(video)
         db.commit()
         db.refresh(video)
-        print('video_uploaded')
         return video
 
     def delete_video(self, db: Session, video_id: int):
         db_video = self.get_video_by_id(db, video_id)
         if db_video is None:
             raise HTTPException(status_code=404, detail=f'Video with id {video_id} not found.')
+        if db_video.status == SourceStatus.PROCESSING:
+            raise HTTPException(status_code=409, detail=f'Video with id {video_id} is currently being streamed,'
+                                                        f' stop streaming first!')
         self.__delete_video_file(db_video.file_path)
         db.delete(db_video)
         db.commit()
         return {'detail': f'Video (id={video_id}) has been deleted.'}
 
-    def start_inference_task(self, db: Session, video_id: int, background_tasks: BackgroundTasks):
+    async def start_inference_task(self, background_tasks: BackgroundTasks, db: Session, video_id: int):
+        if not self.__job_started:
+            # self.__job = threading.Thread(target=asyncio.run, args=(self.__stream_to_client(db),),
+            #                               name='THREAD_read_processed_frames_from_queue')
+            # self.__job.start()
+            print('before adding')
+            background_tasks.add_task(self.__stream_to_client, db)
+            print('after adding')
+            self.__job_started = True
         db_video = self.get_video_by_id(db, video_id)
         if db_video is None:
             raise HTTPException(status_code=404, detail=f'Video with id {video_id} not found')
         if not self.__video_file_exists(db_video.file_path):
             raise HTTPException(status_code=404, detail=f'Video (id={video_id}) file not found')
-        # background_tasks.add_task(self.socket_manager.add_stream, video_id, db_video.file_path)
-        # # await self.socket_manager.add_stream(video_id, db_video.file_path)
 
-        print('trying to start inference')
         self.__worker_stream_reader.add_source(video_id, db_video.file_path)
         # Update source status
         db_video.status = SourceStatus.PROCESSING
         db.commit()
-        print('this endpoint finished')
         return {'detail': f'Video (id={video_id}) is being streamed.'}
 
-    async def accept_connection(self, video_id: int, websocket: WebSocket):
+    async def accept_connection(self, source_id: int, websocket: WebSocket):
         await websocket.accept()
-        print('accepted websocket')
         async with self.__connections_lock:
-            if video_id in self.__connections.keys():
-                print('appending websocket')
-                self.__connections[video_id].append(websocket)
+            if source_id in self.__connections.keys():
+                self.__connections[source_id].append(websocket)
             else:
-                print('adding new websocket')
-                self.__connections[video_id] = [websocket]
-        print('after', self.__connections)
+                self.__connections[source_id] = [websocket]
 
         try:
             while True:
@@ -112,23 +113,36 @@ class MediaService:
                 # data is continuously sent to clients.
                 await websocket.receive_text()
         except WebSocketDisconnect as e:
-            with self.__connections_lock:
-                self.__connections[video_id].remove(websocket)
+            async with self.__connections_lock:
+                print('removing socket hell yea!', source_id)
+                self.__connections[source_id].remove(websocket)
 
-    async def stream_to_client(self, db: Session):
+    async def __stream_to_client(self, db: Session):
         while 1:
             try:
-                print('reading queue')
-                source_id, enc_frame = self.__frames_queue.get(timeout=1)
-                print('found stuff for ', source_id, 'connections:', self.__connections)
+                source_id, enc_frame, success = self.__frames_queue.get(timeout=0.01)
                 async with self.__connections_lock:
-                    for ws in self.__connections[source_id]:
-                        await ws.send_text(enc_frame.tobytes())
+                    if success and enc_frame is not None:
+                        if source_id in self.__connections.keys():
+                            for ws in self.__connections[source_id]:
+                                await ws.send_bytes(enc_frame.tobytes())
+                    else:
+                        # Stream ended
+                        db_video = self.get_video_by_id(db, source_id)
+                        db_video.status = SourceStatus.PROCESSED
+                        db.commit()
+                        if source_id in self.__connections.keys():
+                            for ws in self.__connections[source_id]:
+                                await ws.send_json({'source_id': source_id, 'detail': 'Video stream ended!'})
+                # Allow other requests to process while streams are running
+                await asyncio.sleep(0.01)
             except queue.Empty:
-                continue
+                # Allow other requests to process while no streams are running
+                await asyncio.sleep(0.01)
             except BaseException as e:
-                print('fuck')
-                print(e)
+                e_type, e_object, e_traceback = sys.exc_info()
+                print(f'{threading.current_thread().name}\n'
+                      f'Error:{e_type}:{e_object}\n{"".join(traceback.format_tb(e_traceback))}')
 
     @staticmethod
     def get_file_size(file: UploadFile) -> int:

@@ -1,8 +1,12 @@
 import {useRef, useEffect, useState} from 'react';
+import MDAlert from "../MDAlert";
+import MDTypography from "../MDTypography";
 
 export const StreamPlayer = (props) => {
 
   const [frame, setFrame] = useState("");
+  const [streamEndMessage, setStreamEndMessage] = useState("");
+  const [streamEndAlertVisible, setStreamEndAlertVisible] = useState(false);
   const wsRef = useRef(null);
   const {wsUrl} = props;
 
@@ -10,7 +14,12 @@ export const StreamPlayer = (props) => {
     if (!wsRef.current) {
       const ws = wsRef.current = new WebSocket(wsUrl);
       ws.onmessage = (event) => {
-        setFrame(URL.createObjectURL(event.data));
+        if(event.data instanceof Blob) {
+          setFrame(URL.createObjectURL(event.data));
+        } else {
+          setStreamEndMessage(JSON.parse(event.data)["detail"]);
+          setStreamEndAlertVisible(true);
+        }
       };
       ws.onerror = (e) => console.error(e);
       ws.onopen = () => console.log("Websocket opened!");
@@ -77,9 +86,17 @@ export const StreamPlayer = (props) => {
   // }, [playerRef]);
 
   return (
-    <div>
-      <img src={frame} width={640} height={360}/>
-    </div>
+      <div style={{position: "relative", width: "640px", height: "360px"}}>
+          <img src={frame} width={640} height={360} alt="Frame"/>
+        {streamEndAlertVisible && (
+            <MDAlert
+              color="dark"
+              style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', margin: 0 }}
+            >
+              {streamEndMessage}
+            </MDAlert>
+        )}
+      </div>
   );
 }
 

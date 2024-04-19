@@ -21,15 +21,12 @@ class MediaController:
         self.media_service = MediaService()
 
         self.__init_routes(router=self.router)
-        self.__job = None
-        self.__job_started = False
 
     def __init_routes(self, router):
         @router.post("/", response_model=VideoRead)
         def upload_video(title: str = Form(), description: str = Form(), video_file: UploadFile = File(...),
                          db: Session = Depends(get_db)):
             video_create = VideoCreate(title=title, description=description)
-            print('trying to upload video')
             return self.media_service.upload_video(db, video_create, video_file)
 
         @router.get("/video/stream")
@@ -50,15 +47,10 @@ class MediaController:
 
         @router.get("/video/inference/{video_id}")
         async def start_inference(video_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-            if not self.__job_started:
-                print('starting backgorund job for first and only time')
-                self.__job = threading.Thread(target=asyncio.run, args=(self.media_service.stream_to_client(db),))
-                self.__job.start()
-                self.__job_started = True
-            print('starting inference')
-            return self.media_service.start_inference_task(db, video_id, background_tasks)
+            return await self.media_service.start_inference_task(background_tasks, db, video_id)
 
         @router.websocket("/video/stream/{video_id}")
         async def stream_video(video_id: int, websocket: WebSocket):
-            print('IM HERE')
+            print(f'socket connecting, source is {video_id}')
             await self.media_service.accept_connection(video_id, websocket)
+
