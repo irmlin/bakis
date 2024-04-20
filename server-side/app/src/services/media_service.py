@@ -30,7 +30,7 @@ class MediaService:
 
         # Data traffic from processing job to app
         self.__connections: Dict[int, List[WebSocket]] = {}
-        self.__connections_lock: asyncio.Lock = asyncio.Lock()
+        self.__connections_lock = threading.Lock()
         self.__frames_queue = Queue(maxsize=500)
         self.__job = None
         self.__job_started = False
@@ -79,13 +79,15 @@ class MediaService:
 
     async def start_inference_task(self, background_tasks: BackgroundTasks, db: Session, video_id: int):
         if not self.__job_started:
-            # self.__job = threading.Thread(target=asyncio.run, args=(self.__stream_to_client(db),),
+            # self.__job = threading.Thread(target=asyncio.create_task, args=(self.__stream_to_client(db),),
             #                               name='THREAD_read_processed_frames_from_queue')
             # self.__job.start()
-            print('before adding')
-            background_tasks.add_task(self.__stream_to_client, db)
-            print('after adding')
+            # background_tasks.add_task(self.__stream_to_client, db)
+            # await asyncio.to_thread(self.__stream_to_client, db)
+            # await asyncio.get_running_loop().run_in_executor(None, await self.__stream_to_client(db))
+            asyncio.create_task(self.__stream_to_client(db))
             self.__job_started = True
+
         db_video = self.get_video_by_id(db, video_id)
         if db_video is None:
             raise HTTPException(status_code=404, detail=f'Video with id {video_id} not found')
@@ -100,7 +102,7 @@ class MediaService:
 
     async def accept_connection(self, source_id: int, websocket: WebSocket):
         await websocket.accept()
-        async with self.__connections_lock:
+        with self.__connections_lock:
             if source_id in self.__connections.keys():
                 self.__connections[source_id].append(websocket)
             else:
@@ -113,15 +115,17 @@ class MediaService:
                 # data is continuously sent to clients.
                 await websocket.receive_text()
         except WebSocketDisconnect as e:
-            async with self.__connections_lock:
-                print('removing socket hell yea!', source_id)
-                self.__connections[source_id].remove(websocket)
+            # Handle any unexpected socket disconnect
+            with self.__connections_lock:
+                if source_id in self.__connections.keys():
+                    print('socket disconnected from client ', source_id)
+                    self.__connections[source_id].remove(websocket)
 
     async def __stream_to_client(self, db: Session):
         while 1:
             try:
                 source_id, enc_frame, success = self.__frames_queue.get(timeout=0.01)
-                async with self.__connections_lock:
+                with self.__connections_lock:
                     if success and enc_frame is not None:
                         if source_id in self.__connections.keys():
                             for ws in self.__connections[source_id]:
@@ -132,8 +136,11 @@ class MediaService:
                         db_video.status = SourceStatus.PROCESSED
                         db.commit()
                         if source_id in self.__connections.keys():
+                            # Send stream end messages to all sockets, then close connection.
                             for ws in self.__connections[source_id]:
                                 await ws.send_json({'source_id': source_id, 'detail': 'Video stream ended!'})
+                                await ws.close()
+                            del self.__connections[source_id]
                 # Allow other requests to process while streams are running
                 await asyncio.sleep(0.01)
             except queue.Empty:
@@ -143,6 +150,24 @@ class MediaService:
                 e_type, e_object, e_traceback = sys.exc_info()
                 print(f'{threading.current_thread().name}\n'
                       f'Error:{e_type}:{e_object}\n{"".join(traceback.format_tb(e_traceback))}')
+
+    async def terminate_live_stream(self, db: Session, source_id: int):
+        print('connections before: ', self.__connections)
+        db_video = self.get_video_by_id(db, source_id)
+        if db_video is None:
+            raise HTTPException(status_code=404, detail=f'Source with id {source_id} not found!')
+        self.__worker_stream_reader.remove_source(source_id)
+        with self.__connections_lock:
+            if source_id in self.__connections.keys():
+                # Socket still open, means stream is being terminated. Otherwise, stream has ended previously.
+                print('removing all sockets for source ', source_id)
+                for ws in self.__connections[source_id]:
+                    await ws.close()
+                del self.__connections[source_id]
+                db_video.status = SourceStatus.TERMINATED
+                db.commit()
+
+        return {'detail': f'Stream terminated for source (id={source_id})!'}
 
     @staticmethod
     def get_file_size(file: UploadFile) -> int:

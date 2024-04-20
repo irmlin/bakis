@@ -45,6 +45,11 @@ class MediaController:
         def delete_video(video_id: int, db: Session = Depends(get_db)):
             return self.media_service.delete_video(db, video_id)
 
+        @router.put("/video/stream/{video_id}")
+        async def terminate_live_stream(video_id: int, db: Session = Depends(get_db)):
+            print('put endpoint hit', video_id)
+            return await self.media_service.terminate_live_stream(db, video_id)
+
         @router.get("/video/inference/{video_id}")
         async def start_inference(video_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
             return await self.media_service.start_inference_task(background_tasks, db, video_id)

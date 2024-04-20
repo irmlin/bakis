@@ -1,18 +1,27 @@
 import {useRef, useEffect, useState} from 'react';
 import MDAlert from "../MDAlert";
 import MDTypography from "../MDTypography";
+import MDButton from "../MDButton";
+import Icon from "@mui/material/Icon";
+import DeleteIcon from '@mui/icons-material/Delete';
+import IconButton from "@mui/material/IconButton";
+import {Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle} from "@mui/material";
+import MDInput from "../MDInput";
 
 export const StreamPlayer = (props) => {
 
   const [frame, setFrame] = useState("");
   const [streamEndMessage, setStreamEndMessage] = useState("");
   const [streamEndAlertVisible, setStreamEndAlertVisible] = useState(false);
+  const [removeConfirmDialogOpen, setRemoveConfirmDialogOpen] = useState(false);
+
   const wsRef = useRef(null);
-  const {wsUrl} = props;
+  const [wsTrigger, setWsTrigger] = useState(false);
+  const {streamInfo, onStreamRemove} = props;
 
   useEffect(() => {
     if (!wsRef.current) {
-      const ws = wsRef.current = new WebSocket(wsUrl);
+      const ws = wsRef.current = new WebSocket(streamInfo.wsUrl);
       ws.onmessage = (event) => {
         if(event.data instanceof Blob) {
           setFrame(URL.createObjectURL(event.data));
@@ -22,17 +31,35 @@ export const StreamPlayer = (props) => {
         }
       };
       ws.onerror = (e) => console.error(e);
-      ws.onopen = () => console.log("Websocket opened!");
+      ws.onopen = () => console.log("Websocket opened!", streamInfo.id);
+      ws.onclose = () => {
+        console.log("Closing socket!", streamInfo.id);
+        // wsRef.current.close();
+        // wsRef.current = null;
+      }
     }
     return () => {
       const ws = wsRef.current;
       if (ws) {
         ws.close();
         wsRef.current = null;
-        console.log("Closed web socket connection!");
+        console.log("useEffect ended, setting trigger!", streamInfo.id);
       }
     };
   }, [])
+
+  const onConfirmRemoveButtonClick = () => {
+    onStreamRemove();
+    closeRemoveConfirmDialog();
+  }
+
+  const closeRemoveConfirmDialog = () => {
+    setRemoveConfirmDialogOpen(false);
+  }
+
+  const openRemoveConfirmDialog = () => {
+    setRemoveConfirmDialogOpen(true);
+  }
 
   // useEffect(() => {
   //   // Make sure Video.js player is only initialized once
@@ -86,17 +113,44 @@ export const StreamPlayer = (props) => {
   // }, [playerRef]);
 
   return (
-      <div style={{position: "relative", width: "640px", height: "360px"}}>
-          <img src={frame} width={640} height={360} alt="Frame"/>
+    <>
+      <div style={{position: "relative"}}>
+        <IconButton color="error" size="large" onClick={openRemoveConfirmDialog}>
+          <DeleteIcon/>
+        </IconButton>
+        <img src={frame} style={{top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain'}} alt="Video"/>
         {streamEndAlertVisible && (
-            <MDAlert
-              color="dark"
-              style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', margin: 0 }}
-            >
-              {streamEndMessage}
-            </MDAlert>
+          <MDAlert
+            color="dark"
+            style={{position: 'absolute', bottom: 0, left: 0, width: '100%', margin: 0}}
+          >
+            {streamEndMessage}
+          </MDAlert>
         )}
       </div>
+      <Dialog
+        open={removeConfirmDialogOpen}
+        onClose={closeRemoveConfirmDialog}
+      >
+        <DialogTitle>Terminate stream for <i>{streamInfo.title}?</i></DialogTitle>
+        <DialogActions>
+          <MDButton
+            onClick={onConfirmRemoveButtonClick}
+            variant="contained"
+            color="error"
+          >
+            YES
+          </MDButton>
+          <MDButton
+            onClick={closeRemoveConfirmDialog}
+            variant="contained"
+            color="info"
+          >
+            CANCEL
+          </MDButton>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 }
 

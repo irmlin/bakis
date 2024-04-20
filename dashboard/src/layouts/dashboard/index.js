@@ -45,32 +45,32 @@ export default function Dashboard() {
   const [newSourceTrigger, onNewSourceTrigger] = useState(true);
 
   // Video player settings
-  const playerRef = useRef(null);
-  const videoPlayerOptions = {
-    autoplay: false,
-    controls: true,
-    responsive: true,
-    fluid: true,
-    sources: [{
-      src: 'video2.mp4',
-      type: 'video/mp4'
-    }]
-  };
+  // const playerRef = useRef(null);
+  // const videoPlayerOptions = {
+  //   autoplay: false,
+  //   controls: true,
+  //   responsive: true,
+  //   fluid: true,
+  //   sources: [{
+  //     src: 'video2.mp4',
+  //     type: 'video/mp4'
+  //   }]
+  // };
 
-  const handlePlayerReady = (player) => {
-    playerRef.current = player;
-
-    // You can handle player events here, for example:
-    player.on('waiting', () => {
-      // console.log('waiting')
-      // videojs.log('player is waiting');
-    });
-
-    player.on('dispose', () => {
-      // console.log('disposing')
-      // videojs.log('player will dispose');
-    });
-  };
+  // const handlePlayerReady = (player) => {
+  //   playerRef.current = player;
+  //
+  //   // You can handle player events here, for example:
+  //   player.on('waiting', () => {
+  //     // console.log('waiting')
+  //     // videojs.log('player is waiting');
+  //   });
+  //
+  //   player.on('dispose', () => {
+  //     // console.log('disposing')
+  //     // videojs.log('player will dispose');
+  //   });
+  // };
 
   return (
     <DashboardLayout>
@@ -87,7 +87,7 @@ export default function Dashboard() {
         <Grid container spacing={3}>
           <Grid item xs={12} md={6} lg={4}>
             <MDBox mb={3}>
-              <VideoPlayer options={videoPlayerOptions} onReady={handlePlayerReady} />
+              {/*<VideoPlayer options={videoPlayerOptions} onReady={handlePlayerReady} />*/}
             </MDBox>
           </Grid>
         </Grid>

@@ -23,6 +23,12 @@ class WorkerStreamReader:
         with self.__sources_lock:
             self.__sources[source_id] = source_str
 
+    def remove_source(self, source_id):
+        with self.__sources_lock:
+            if source_id in self.__sources.keys():
+                print('inside worker. terminating stream.')
+                del self.__sources[source_id]
+
     def start(self):
         Process(target=self._do_work, name='PROCESS_worker_stream_reader').start()
 
@@ -43,15 +49,15 @@ class WorkerStreamReader:
     def __read_caps(self) -> List[int]:
         finished_ids = []
         for (source_id, cap) in self.__caps.items():
-            t = time.time()
+            # t = time.time()
             success, frame = cap.read()
-            print(f'read took {time.time() - t}s')
+            # print(f'read took {time.time() - t}s')
             enc_frame = None
             if success:
                 # processed_frame = self.__simulate_ml_inference(frame)
-                t = time.time()
+                # t = time.time()
                 _, enc_frame = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 20])
-                print(f'encoded frame took {time.time() - t}')
+                # print(f'encoded frame took {time.time() - t}')
             else:
                 finished_ids.append(source_id)
             self.__on_done((source_id, enc_frame, success))
@@ -68,6 +74,7 @@ class WorkerStreamReader:
         with self.__sources_lock:
             if not len(self.__sources):
                 return False
+
             # Handle new sources
             live_source_ids = self.__caps.keys()
             for source_id, source_str in self.__sources.items():
@@ -77,10 +84,11 @@ class WorkerStreamReader:
 
             # Handle removed sources (stop streaming)
             expected_source_ids = self.__sources.keys()
-            for source_id in self.__caps.keys():
+            for source_id in list(self.__caps.keys()):
                 if source_id not in expected_source_ids:
                     self.__caps[source_id].release()
                     del self.__caps[source_id]
+                    print('deleted cap for', source_id)
 
         return True
 

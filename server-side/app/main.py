@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
+from multiprocessing import freeze_support
 
 import uvicorn
 from fastapi import FastAPI
@@ -37,4 +38,8 @@ app.include_router(root_router)
 
 
 if __name__ == "__main__":
+    freeze_support()
     uvicorn.run("main:app", host=HOST, port=PORT, log_level="info", reload=True)
+
+# if __name__ == "__main__":
+#     freeze_support()

@@ -26,3 +26,12 @@ export const getLiveStreams = async () => {
       return err.response;
   }
 }
+
+export const removeLiveStream = async (source_id) => {
+  try {
+    return await axiosInstance.put(`/media/video/stream/${source_id}`);
+  } catch (err) {
+      console.error("Failed to start stream for source ID: ", source_id, err);
+      return err.response;
+  }
+};
