@@ -40,7 +40,7 @@ class MediaService:
         self.__frames_queue = Queue(maxsize=500)
         self.__internal_queues: Dict[int, Dict[str, Any]] = {}
         self.__frames_buffer_size = 30
-        self.__pipeline_fps = 15
+        self.__pipeline_fps = 20
         self.__active_source_id = None
         # Whether streaming job is active
         self.__job_started = False
