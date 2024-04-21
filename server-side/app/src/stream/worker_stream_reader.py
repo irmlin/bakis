@@ -5,10 +5,8 @@ import time
 import traceback
 from multiprocessing import Process, current_process
 from typing import List, Dict, Any
-from time import time as timer
 
 import cv2
-from fastapi import WebSocket
 
 
 class WorkerStreamReader:
@@ -19,9 +17,6 @@ class WorkerStreamReader:
         self.__sources_lock = multiprocessing.Lock()
         self.__caps: Dict[int, Dict[str, Any]] = {}
         self.__on_done = on_done
-        self.__batch_size = 5
-        self.__batch_data = dict()
-        self.__enqueued = 0
 
     def add_source(self, source_id, source_str) -> None:
         with self.__sources_lock:
@@ -52,42 +47,34 @@ class WorkerStreamReader:
     def __read_caps(self) -> List[int]:
         finished_ids = []
         for (source_id, cap_info) in self.__caps.items():
-            if not self.__should_read_cap(source_id):
-                # print(f"READER. Not reading {source_id} frames. Time passed since last batch sent: {timer() - self.__batch_data[source_id]['start_time']}."
-                #       f"Expected time to pass: {self.__batch_size / self.__caps[source_id]['fps']}")
-                continue
-            self.__clear_batch_if_full(source_id)
+            if not self.__should_read_cap(source_id): continue
+            self.__update_fps_info(source_id)
             success, frame = cap_info['cap'].read()
             if success:
-                self.__batch_data[source_id]['frames'].append(frame)
-                # print(
-                #     f"READER. Appended frame for {source_id}. Batch full {len(self.__batch_data[source_id]['frames'])}/{self.__batch_size}")
+                self.__caps[source_id]['num_read'] += 1
             else:
                 finished_ids.append(source_id)
-            # Batch is full or stream ended -> send batch downstream
-            if self.__batch_full(source_id) or not success:
-                self.__enqueued += 1
-                print(f"READER. Sending batch of {len(self.__batch_data[source_id]['frames'])} frames. Success was {success}."
-                      f"Took {timer() - self.__batch_data[source_id]['start_time']} seconds to read full batch. "
-                      f"Total enqueued: {self.__enqueued}")
-                self.__on_done((source_id, self.__batch_data[source_id]['frames'][:], success))
+
+            frame_num = cap_info['frame_num']
+            cap_info['frame_num'] += 1
+            print(f'R. source {source_id} {success} frame_num {frame_num}')
+            self.__on_done((source_id, frame, success, frame_num))
+
         return finished_ids
 
-    def __should_read_cap(self, source_id: int) -> bool:
+    def __update_fps_info(self, source_id):
+        if self.__caps[source_id]['num_read'] == self.__caps[source_id]['fps']:
+            self.__caps[source_id]['num_read'] = 0
+            self.__caps[source_id]['start_time'] = time.time()
+
+    def __should_read_cap(self, source_id) -> bool:
+        num_read = self.__caps[source_id]['num_read']
+        fps = self.__caps[source_id]['fps']
+        start_time = self.__caps[source_id]['start_time']
         return (
-            not self.__batch_full(source_id) or
-            timer() - self.__batch_data[source_id]['start_time'] > self.__batch_size / self.__caps[source_id]['fps']
-            # timer() - self.__batch_data[source_id]['start_time'] > self.__batch_size / 60
+            num_read < fps or
+            time.time() - start_time >= 1.0
         )
-
-    def __clear_batch_if_full(self, source_id) -> None:
-        if self.__batch_full(source_id):
-            self.__batch_data[source_id]['frames'].clear()
-            # Mark time of first frame in batch
-            self.__batch_data[source_id]['start_time'] = timer()
-
-    def __batch_full(self, source_id):
-        return len(self.__batch_data[source_id]['frames']) >= self.__batch_size
 
     def __handle_finished_caps(self, finished_ids: List[int]) -> None:
         with self.__sources_lock:
@@ -95,7 +82,6 @@ class WorkerStreamReader:
                 self.__caps[source_id]['cap'].release()
                 del self.__caps[source_id]
                 del self.__sources[source_id]
-                del self.__batch_data[source_id]
 
     def __handle_source_changes(self) -> bool:
         with self.__sources_lock:
@@ -109,11 +95,10 @@ class WorkerStreamReader:
                     video_cap = cv2.VideoCapture(source_str)
                     self.__caps[source_id] = {
                         'cap': video_cap,
-                        'fps': video_cap.get(cv2.CAP_PROP_FPS)
-                    }
-                    self.__batch_data[source_id] = {
-                        'frames': [],
-                        'start_time': timer()
+                        'fps': video_cap.get(cv2.CAP_PROP_FPS),
+                        'start_time': time.time(),
+                        'num_read': 0,
+                        'frame_num': 0
                     }
 
             # Handle removed sources (stop streaming)
@@ -122,8 +107,5 @@ class WorkerStreamReader:
                 if source_id not in expected_source_ids:
                     self.__caps[source_id]['cap'].release()
                     del self.__caps[source_id]
-                    del self.__batch_data[source_id]
 
         return True
-
-

@@ -5,10 +5,11 @@ import queue
 import shutil
 import sys
 import threading
+import time
 import traceback
 import uuid
 from multiprocessing import Queue
-from typing import List, Dict
+from typing import List, Dict, Any
 
 from fastapi import UploadFile, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks
 from sqlalchemy.orm import Session
@@ -37,11 +38,16 @@ class MediaService:
         self.__connections_lock = threading.Lock()
         # Queue of frames which have been inferred on and are ready for streaming
         self.__frames_queue = Queue(maxsize=500)
+        self.__internal_queues: Dict[int, Dict[str, Any]] = {}
+        self.__frames_buffer_size = 30
+        self.__pipeline_fps = 15
+        self.__active_source_id = None
         # Whether streaming job is active
         self.__job_started = False
 
         # Workers
-        self.__worker_ml_inference = WorkerMLInference(on_done=self.__put_processed_frames_to_queue)
+        self.__worker_ml_inference = WorkerMLInference(on_done=self.__put_processed_frames_to_queue,
+                                                       batch_size=5)
         self.__worker_stream_reader = WorkerStreamReader(shared_sources_dict=self.__shared_sources_dict,
                                                          on_done=self.__worker_ml_inference.add)
         self.__worker_stream_reader.start()
@@ -99,6 +105,9 @@ class MediaService:
             raise HTTPException(status_code=404, detail=f'Video (id={video_id}) file not found')
 
         self.__worker_stream_reader.add_source(video_id, db_video.file_path)
+        # TODO: removed hardcoded FPS
+        self.__internal_queues[video_id] = {'q': queue.Queue(maxsize=500), 'ready': False,
+                                            'last_sent_time': time.time(), 'wait_time': 1/self.__pipeline_fps}
         # Update source status
         db_video.status = SourceStatus.PROCESSING
         db.commit()
@@ -111,7 +120,6 @@ class MediaService:
                 self.__connections[source_id].append(websocket)
             else:
                 self.__connections[source_id] = [websocket]
-
         try:
             while True:
                 # The websocket will be destroyed if this method terminates.
@@ -128,32 +136,70 @@ class MediaService:
     async def __stream_to_client(self, db: Session):
         while 1:
             try:
-                source_id, enc_frame, success = self.__frames_queue.get(timeout=1)
-                with self.__connections_lock:
-                    if success and enc_frame is not None:
-                        if source_id in self.__connections.keys():
-                            for ws in self.__connections[source_id]:
-                                await ws.send_bytes(enc_frame.tobytes())
-                    else:
-                        # Stream ended
-                        db_video = self.get_video_by_id(db, source_id)
-                        db_video.status = SourceStatus.PROCESSED
-                        db.commit()
-                        if source_id in self.__connections.keys():
-                            # Send stream end messages to all sockets, then close connection.
-                            for ws in self.__connections[source_id]:
-                                await ws.send_json({'source_id': source_id, 'detail': 'Video stream ended!'})
-                                await ws.close()
-                            del self.__connections[source_id]
-                # Allow other requests to process while streams are running
-                await asyncio.sleep(0.01)
+                source_id, enc_frame, result, success, frame_num = self.__frames_queue.get(block=False)
+                print(f'SENDER0. {source_id} {success}')
+                # self.__active_source_id = source_id
+                self.__internal_queues[source_id]['q'].put((source_id, enc_frame, result, success, frame_num))
+                self.__set_internal_q_buffer_ready(source_id)
             except queue.Empty:
+                # if self.__active_source_id is not None:
+                source_ids = list(self.__internal_queues.keys())
+                for source_id in source_ids:
+                    if self.__frame_ready_for_stream(source_id=source_id):
+                        await self.__handle_stream(source_id=source_id, db=db)
                 # Allow other requests to process while no streams are running
                 await asyncio.sleep(0.01)
             except BaseException as e:
                 e_type, e_object, e_traceback = sys.exc_info()
                 print(f'{threading.current_thread().name}\n'
                       f'Error:{e_type}:{e_object}\n{"".join(traceback.format_tb(e_traceback))}')
+
+    async def __handle_stream(self, source_id: int, db: Session):
+        try:
+            _, enc_frame, result, success, frame_num = self.__internal_queues[source_id]['q'].get(block=False)
+        except queue.Empty:
+            print(f'Here! {source_id}')
+            return
+        with self.__connections_lock:
+            print(f'SENDER. {source_id} {success}, frame was {enc_frame is not None}')
+            if success and enc_frame is not None:
+                if source_id in self.__connections.keys():
+                    for ws in self.__connections[source_id]:
+                        # TODO: MUST add WebSocketDisconnect catching here
+                        print(f"PROCESSING: source {source_id}, frame {frame_num}. Internal queue: {self.__internal_queues[source_id]['q'].qsize()}. "
+                              f"Success: {success}")
+                        await ws.send_bytes(enc_frame.tobytes())
+                        self.__internal_queues[source_id]['last_sent_time'] = time.time()
+            else:
+                # Stream ended
+                print(f'HERE! {source_id}')
+                db_video = self.get_video_by_id(db, source_id)
+                db_video.status = SourceStatus.PROCESSED
+                db.commit()
+                del self.__internal_queues[source_id]
+                if source_id in self.__connections.keys():
+                    # Send stream end messages to all sockets, then close connection.
+                    for ws in self.__connections[source_id]:
+                        # TODO: MUST add WebSocketDisconnect catching here
+                        await ws.send_json({'source_id': source_id, 'detail': 'Video stream ended!'})
+                        await ws.close()
+                    del self.__connections[source_id]
+
+    def __frame_ready_for_stream(self, source_id: int):
+        # Buffered frames have to be ready AND enough time passed since last sent frame to maintain FPS.
+        # print(f"Wait time is {self.__internal_queues[source_id]['wait_time']}."
+        #       f" Passed: {time.time() - self.__internal_queues[source_id]['last_sent_time']}")
+        return (
+            self.__internal_queues[source_id]['ready'] and
+            time.time() - self.__internal_queues[source_id]['last_sent_time'] >= self.__internal_queues[source_id]['wait_time']
+        )
+
+    def __set_internal_q_buffer_ready(self, source_id):
+        if self.__internal_queues[source_id]['ready']:
+            return
+        if self.__internal_queues[source_id]['q'].qsize() >= self.__frames_buffer_size:
+            print(f'Buffered frames for source {source_id}, will start streaming!')
+            self.__internal_queues[source_id]['ready'] = True
 
     async def terminate_live_stream(self, db: Session, source_id: int):
         print('connections before: ', self.__connections)
