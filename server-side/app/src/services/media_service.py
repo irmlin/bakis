@@ -19,6 +19,7 @@ from ..schemas import VideoCreate
 from ..socket import WebSocketManager
 from ..stream import WorkerStreamReader
 from ..utilities.file_size import FileSize
+from ..ml import WorkerMLInference
 
 
 class MediaService:
@@ -26,22 +27,25 @@ class MediaService:
     # TODO add repository class
     def __init__(self):
         self.file_size_limit_bytes = FileSize.GB
-        self.socket_manager = WebSocketManager()
-
-        # Data traffic from processing job to app
+        # Object for creating objects shared across processes
+        self.__manager = multiprocessing.Manager()
+        # TODO: could use a mp.Queue instead of Manager. Read streams on queue.Empty exception.
+        #  This way, could maintain worker interface of read_queue -> on_done.
+        self.__shared_sources_dict = self.__manager.dict()
+        # Active websocket connections
         self.__connections: Dict[int, List[WebSocket]] = {}
         self.__connections_lock = threading.Lock()
+        # Queue of frames which have been inferred on and are ready for streaming
         self.__frames_queue = Queue(maxsize=500)
-        self.__job = None
+        # Whether streaming job is active
         self.__job_started = False
 
-        # Data traffic from app to processing job
-        self.__manager = multiprocessing.Manager()
-        self.__shared_sources_dict = self.__manager.dict()
+        # Workers
+        self.__worker_ml_inference = WorkerMLInference(on_done=self.__put_processed_frames_to_queue)
         self.__worker_stream_reader = WorkerStreamReader(shared_sources_dict=self.__shared_sources_dict,
-                                                         on_done=self.__frames_queue.put)
-
+                                                         on_done=self.__worker_ml_inference.add)
         self.__worker_stream_reader.start()
+        self.__worker_ml_inference.start()
 
     def upload_video(self, db: Session, video_create: VideoCreate, video_file: UploadFile):
         video_size_bytes = self.get_file_size(file=video_file)
@@ -124,7 +128,7 @@ class MediaService:
     async def __stream_to_client(self, db: Session):
         while 1:
             try:
-                source_id, enc_frame, success = self.__frames_queue.get(timeout=0.01)
+                source_id, enc_frame, success = self.__frames_queue.get(timeout=1)
                 with self.__connections_lock:
                     if success and enc_frame is not None:
                         if source_id in self.__connections.keys():
@@ -168,6 +172,13 @@ class MediaService:
                 db.commit()
 
         return {'detail': f'Stream terminated for source (id={source_id})!'}
+
+    def __put_processed_frames_to_queue(self, data):
+        if self.__frames_queue.full():
+            print(f'__frames_queue is full!')
+            return
+
+        self.__frames_queue.put(data)
 
     @staticmethod
     def get_file_size(file: UploadFile) -> int:
