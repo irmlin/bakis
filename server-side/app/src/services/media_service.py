@@ -137,7 +137,7 @@ class MediaService:
         while 1:
             try:
                 source_id, enc_frame, result, success, frame_num = self.__frames_queue.get(block=False)
-                print(f'SENDER0. {source_id} {success}')
+                # print(f'SENDER0. {source_id} {success}')
                 # self.__active_source_id = source_id
                 self.__internal_queues[source_id]['q'].put((source_id, enc_frame, result, success, frame_num))
                 self.__set_internal_q_buffer_ready(source_id)
@@ -158,21 +158,20 @@ class MediaService:
         try:
             _, enc_frame, result, success, frame_num = self.__internal_queues[source_id]['q'].get(block=False)
         except queue.Empty:
-            print(f'Here! {source_id}')
             return
         with self.__connections_lock:
-            print(f'SENDER. {source_id} {success}, frame was {enc_frame is not None}')
+            # print(f'SENDER. {source_id} {success}, frame was {enc_frame is not None}')
             if success and enc_frame is not None:
                 if source_id in self.__connections.keys():
                     for ws in self.__connections[source_id]:
                         # TODO: MUST add WebSocketDisconnect catching here
-                        print(f"PROCESSING: source {source_id}, frame {frame_num}. Internal queue: {self.__internal_queues[source_id]['q'].qsize()}. "
-                              f"Success: {success}")
+                        # print(f"PROCESSING: source {source_id}, frame {frame_num}. Internal queue: {self.__internal_queues[source_id]['q'].qsize()}. "
+                        #       f"Success: {success}")
                         await ws.send_bytes(enc_frame.tobytes())
                         self.__internal_queues[source_id]['last_sent_time'] = time.time()
             else:
                 # Stream ended
-                print(f'HERE! {source_id}')
+                print(f'STREAM EEEEEEEEEENDED! {source_id}')
                 db_video = self.get_video_by_id(db, source_id)
                 db_video.status = SourceStatus.PROCESSED
                 db.commit()

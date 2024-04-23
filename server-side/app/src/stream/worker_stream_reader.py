@@ -4,7 +4,7 @@ import sys
 import time
 import traceback
 from multiprocessing import Process, current_process
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
 import cv2
 
@@ -36,7 +36,8 @@ class WorkerStreamReader:
     async def __do_work(self) -> None:
         while 1:
             try:
-                if not self.__handle_source_changes(): continue
+                removed_sources = self.__handle_source_changes()
+                self.__inform_about_removed_sources(removed_sources=removed_sources)
                 finished_ids = self.__read_caps()
                 self.__handle_finished_caps(finished_ids=finished_ids)
             except BaseException as e:
@@ -57,10 +58,15 @@ class WorkerStreamReader:
 
             frame_num = cap_info['frame_num']
             cap_info['frame_num'] += 1
-            print(f'R. source {source_id} {success} frame_num {frame_num}')
+            # print(f'R. source {source_id} {success} frame_num {frame_num}')
             self.__on_done((source_id, frame, success, frame_num))
 
         return finished_ids
+
+    def __inform_about_removed_sources(self, removed_sources: List[int]) -> None:
+        for source_id in removed_sources:
+            self.__on_done((source_id, None, False, -1))
+
 
     def __update_fps_info(self, source_id):
         if self.__caps[source_id]['num_read'] == self.__caps[source_id]['fps']:
@@ -83,11 +89,9 @@ class WorkerStreamReader:
                 del self.__caps[source_id]
                 del self.__sources[source_id]
 
-    def __handle_source_changes(self) -> bool:
+    def __handle_source_changes(self) -> List[int]:
+        removed_sources = []
         with self.__sources_lock:
-            if not len(self.__sources):
-                return False
-
             # Handle new sources
             live_source_ids = self.__caps.keys()
             for source_id, source_str in self.__sources.items():
@@ -105,7 +109,8 @@ class WorkerStreamReader:
             expected_source_ids = self.__sources.keys()
             for source_id in list(self.__caps.keys()):
                 if source_id not in expected_source_ids:
+                    removed_sources.append(source_id)
                     self.__caps[source_id]['cap'].release()
                     del self.__caps[source_id]
 
-        return True
+        return removed_sources
