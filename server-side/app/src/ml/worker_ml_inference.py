@@ -1,5 +1,6 @@
 import asyncio
 import multiprocessing
+import os
 import queue
 import sys
 import time
@@ -25,6 +26,11 @@ class WorkerMLInference:
         self.__batch_data: Dict[int, Dict[str, Any]] = {}
         self.__last_frame_hit = []
         self.__to_delete = []
+        self.__feature_extractor_onnx_path = 'app/src/ml/models/feature_extractor_gpu.onnx'
+        self.__transformer_onnx_path = 'app/src/ml/models/transformer_gpu.onnx'
+        print(os.getcwd())
+        self.__feature_extractor_session = PickableInferenceSession(self.__feature_extractor_onnx_path)
+        self.__transformer_session = PickableInferenceSession(self.__transformer_onnx_path)
 
     def add(self, data) -> None:
         try:
@@ -39,8 +45,8 @@ class WorkerMLInference:
     def __do_work(self) -> None:
         while 1:
             try:
+                # TODO: timeout
                 source_id, frame, success, frame_num = self.__queue.get(block=True, timeout=0.1)
-                print(F'ML. Got {source_id}')
                 if source_id not in self.__batch_data.keys():
                     # Initialize new source
                     self.__batch_data[source_id] = {'frames': [], 'ready': False, 'frame_nums': []}
@@ -49,29 +55,20 @@ class WorkerMLInference:
                     self.__batch_data[source_id]['frames'].append(frame)
                     self.__batch_data[source_id]['frame_nums'].append(frame_num)
                 else:
-                    print(f'ML. Last frame received for {source_id}, frame {frame_num}')
                     self.__last_frame_hit.append(source_id)
 
-                if source_id in self.__last_frame_hit:
-                    print(f'ML. Last frame1, source {source_id}')
                 self.__set_batch_ready(source_id, success)
 
-                if source_id in self.__last_frame_hit:
-                    print(f'ML. Last frame2, source {source_id}')
-
                 if not self.__all_batches_ready():
-                    print(f'ML. Batch not ready, {source_id}, {self.__batch_data.keys()}')
                     continue
 
-                if source_id in self.__last_frame_hit:
-                    print(f'ML. Last frame3, source {source_id}')
-
-                result = self.__infer()
+                # scores = self.__infer()
+                scores = np.random.rand(len(self.__batch_data), 2)
+                # print(scores)
                 for i in range(self.__batch_size):
                     for j, s in enumerate(self.__batch_data.keys()):
                         frames = self.__batch_data[s]['frames']
                         if i >= len(frames):
-                            print(f'ML. All frames sent for {s}, i was {i}. Skipping in loop.')
                             # All frames have been sent
                             continue
                         fn = self.__batch_data[s]['frame_nums'][i]
@@ -81,20 +78,16 @@ class WorkerMLInference:
                                           (len(frames) <= self.__batch_size) and
                                           (i + 1) == len(frames))
                         if is_final_frame:
-                            print(f'ML. Final frame reached for {s}, frame {fn}. {self.__last_frame_hit} '
-                                  f'{len(frames)}, {i + 1}')
                             self.__to_delete.append(s)
-                        self.__on_done((s, enc_frame, result[j], not is_final_frame, fn))
+                        self.__on_done((s, enc_frame, scores[j], not is_final_frame, fn))
 
                 for s in self.__to_delete:
-                    print(f'ML. Deleting {s}')
                     self.__remove_finished_source(s)
                 self.__to_delete = []
                 self.__reset_batches()
 
             except queue.Empty:
                 pass
-                # print('INFERENCE. queue was empty.')
             except BaseException as e:
                 e_type, e_object, e_traceback = sys.exc_info()
                 print(f'{current_process().name}\n'
@@ -105,30 +98,42 @@ class WorkerMLInference:
         self.__last_frame_hit.remove(source_id)
 
     def __reset_batches(self):
-        print(f'ML. Reset batches BEFORE', end=' ')
-        for s in self.__batch_data.keys():
-            print(f"{s}: {len(self.__batch_data[s]['frames'])}, {self.__batch_data[s]['ready']}", end='; ')
         self.__batch_data = {source_id: {'frames': data['frames'][self.__batch_size:],
                                          'ready': (len(data['frames'][self.__batch_size:]) >= self.__batch_size
                                                    or source_id in self.__last_frame_hit),
                                          'frame_nums': data['frame_nums'][self.__batch_size:]}
                              for source_id, data in self.__batch_data.items()}
-        print(f'\nML. Reset batches After', end=' ')
-        for s in self.__batch_data.keys():
-            print(f"{s}: {len(self.__batch_data[s]['frames'])}, {self.__batch_data[s]['ready']}", end='; ')
-        print()
 
-    def __infer(self):
-        tensor = np.zeros((len(self.__batch_data), self.__img_h, self.__img_w, 3), dtype=np.float32)
-        result = np.random.rand(len(self.__batch_data), 2)
-        return result
+    def __infer(self) -> np.ndarray:
+        input_tensor = self.__get_input_tensor()
+        features = self.__feature_extractor_session.run(["output_0"], {"inputs": input_tensor})[0]
+        reshaped_features = self.__reshape_input_for_transformer(features=features)
+        return self.__transformer_session.run(["output_0"], {"inputs": reshaped_features})[0]
+
+    def __reshape_input_for_transformer(self, features: np.ndarray) -> np.ndarray:
+        batch_size = int(features.shape[0] / self.__batch_size)
+        reshaped_features_shape = (batch_size, self.__batch_size, features.shape[1])
+        reshaped_features = np.zeros(reshaped_features_shape, dtype=np.float32)
+        for i in range(batch_size):
+            reshaped_features[i] = features[i * self.__batch_size: i * self.__batch_size + self.__batch_size]
+        return reshaped_features
+
+    def __get_input_tensor(self):
+        tensor = np.zeros((len(self.__batch_data) * self.__batch_size,
+                           self.__img_h, self.__img_w, 3), dtype=np.float32)
+
+        for i, source_id in enumerate(self.__batch_data.keys()):
+            for j, frame in enumerate(self.__batch_data[source_id]['frames']):
+                resized_frame = cv2.resize(frame, (self.__img_h, self.__img_w))
+                resized_frame = resized_frame[:, :, [2, 1, 0]]
+                tensor[i * self.__batch_size + j] = resized_frame
+
+        return tensor.astype(np.float32)
 
     def __set_batch_ready(self, source_id: int, success: bool) -> None:
         self.__batch_data[source_id]['ready'] = (not success or
                                                  len(self.__batch_data[source_id]['frames']) >= self.__batch_size or
                                                  source_id in self.__last_frame_hit)
-        print(f"ML. Set batch ready {source_id} to {self.__batch_data[source_id]['ready']}. Success: {success}'),"
-              f" len was {len(self.__batch_data[source_id]['frames'])}")
 
     def __all_batches_ready(self):
         for source_id, data in self.__batch_data.items():

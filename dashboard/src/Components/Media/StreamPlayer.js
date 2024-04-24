@@ -7,6 +7,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import IconButton from "@mui/material/IconButton";
 import {Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle} from "@mui/material";
 import MDInput from "../MDInput";
+import StreamStatusChart from "../../layouts/dashboard/components/StreamStatusChart";
 
 export const StreamPlayer = (props) => {
 
@@ -14,9 +15,9 @@ export const StreamPlayer = (props) => {
   const [streamEndMessage, setStreamEndMessage] = useState("");
   const [streamEndAlertVisible, setStreamEndAlertVisible] = useState(false);
   const [removeConfirmDialogOpen, setRemoveConfirmDialogOpen] = useState(false);
+  const [modelScores, setModelScores] = useState([]);
 
   const wsRef = useRef(null);
-  const [wsTrigger, setWsTrigger] = useState(false);
   const {streamInfo, onStreamRemove} = props;
 
   useEffect(() => {
@@ -26,8 +27,15 @@ export const StreamPlayer = (props) => {
         if(event.data instanceof Blob) {
           setFrame(URL.createObjectURL(event.data));
         } else {
-          setStreamEndMessage(JSON.parse(event.data)["detail"]);
-          setStreamEndAlertVisible(true);
+          const parsed = JSON.parse(event.data);
+          if ("scores" in parsed) {
+            setModelScores(parsed.scores);
+          } else if ("detail" in parsed) {
+            setStreamEndMessage(parsed.detail);
+            setStreamEndAlertVisible(true);
+          } else {
+            console.log('Unexpected data received from socket: ', parsed);
+          }
         }
       };
       ws.onerror = (e) => console.error(e);
@@ -127,6 +135,13 @@ export const StreamPlayer = (props) => {
             {streamEndMessage}
           </MDAlert>
         )}
+        <StreamStatusChart
+          color="dark"
+          title="Completed tasks title"
+          description="Last Campaign Performance"
+          modelScores={modelScores}
+          historySecs={30}
+        />
       </div>
       <Dialog
         open={removeConfirmDialogOpen}
