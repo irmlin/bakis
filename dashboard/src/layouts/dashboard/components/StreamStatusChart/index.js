@@ -73,6 +73,20 @@ function StreamStatusChart({ color, title, description, chart, input, id }) {
 
         const labels = data?.labels ?? [];
 
+        data?.datasets.push({
+            label: 'asdsa',
+            tension: 0,
+            pointRadius: 5,
+            pointBorderColor: "transparent",
+            pointBackgroundColor: "rgba(255, 255, 255, .8)",
+            borderColor: "rgba(255, 255, 255, .8)",
+            borderWidth: 4,
+            backgroundColor: "transparent",
+            fill: true,
+            maxBarThickness: 6,
+            data: [-0.1, 3]
+        });
+
         const datapoints = data?.datasets.at(0)?.data;
         if (datapoints === undefined || datapoints === null) {
             return;
