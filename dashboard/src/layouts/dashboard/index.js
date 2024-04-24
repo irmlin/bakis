@@ -1,4 +1,4 @@
-/**
+ /**
 =========================================================
 * Material Dashboard 2 React - v2.2.0
 =========================================================
@@ -20,6 +20,7 @@ import Grid from "@mui/material/Grid";
 
 // Material Dashboard 2 React components
 import MDBox from "Components/MDBox";
+import MDButton from "Components/MDButton";
 
 // Material Dashboard 2 React example components
 import DashboardLayout from "Examples/LayoutContainers/DashboardLayout";
@@ -39,6 +40,7 @@ import OrdersOverview from "layouts/dashboard/components/OrdersOverview";
 import VideoPlayer from "Components/Media/VideoPlayer";
 import LiveStreamControlPanel from "./components/LiveStreamControlPanel";
 import LiveStreamPanel from "./components/LiveStreamPanel";
+import StreamStatusChart from "./components/StreamStatusChart";
 
 export default function Dashboard() {
   const { sales, tasks } = reportsLineChartData;
@@ -72,9 +74,56 @@ export default function Dashboard() {
   //   });
   // };
 
+  // For demo purposes
+  const [modelData1, updateModelData1] = useState({
+    crash: null,
+    noCrash: null
+  });
+
+  const [modelData2, updateModelData2] = useState({
+    crash: null,
+    noCrash: null
+  });
+
   return (
     <DashboardLayout>
       <DashboardNavbar />
+
+      {/* For demo purposes */}
+      <StreamStatusChart
+        color="dark"
+        title="420 completed tasks title"
+        description="69 Last Campaign Performance"
+        input={modelData1}
+      />
+      <StreamStatusChart
+        color="dark"
+        title="420 completed tasks title"
+        description="69 Last Campaign Performance"
+        input={modelData2}
+      />
+
+      <MDButton
+        onClick={() => {
+          updateModelData1({crash: 1, noCrash: 0.2});
+          updateModelData2({crash: 420, noCrash: 420});
+          updateModelData1({crash: 1, noCrash: 0.2});
+          updateModelData2({crash: 420, noCrash: 420});
+          updateModelData1({crash: 1, noCrash: 0.2});
+          updateModelData2({crash: 420, noCrash: 420});
+          updateModelData1({crash: 1, noCrash: 0.2});
+          updateModelData2({crash: 420, noCrash: 420});
+          updateModelData1({crash: 1, noCrash: 0.2});
+          updateModelData2({crash: 420, noCrash: 420});
+          updateModelData1({crash: 1, noCrash: 0.2});
+          updateModelData2({crash: 420, noCrash: 420});
+        }}
+        variant="outlined"
+        color="dark"
+      >
+        Stop the cap
+      </MDButton>
+
       <LiveStreamControlPanel
         newSourceTrigger={newSourceTrigger}
         onNewSourceTrigger={onNewSourceTrigger}
