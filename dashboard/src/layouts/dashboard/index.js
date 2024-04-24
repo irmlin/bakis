@@ -95,28 +95,19 @@ export default function Dashboard() {
         title="420 completed tasks title"
         description="69 Last Campaign Performance"
         input={modelData1}
+        id="1"
       />
       <StreamStatusChart
         color="dark"
         title="420 completed tasks title"
         description="69 Last Campaign Performance"
         input={modelData2}
+        id="2"
       />
 
       <MDButton
         onClick={() => {
           updateModelData1({crash: 1, noCrash: 0.2});
-          updateModelData2({crash: 420, noCrash: 420});
-          updateModelData1({crash: 1, noCrash: 0.2});
-          updateModelData2({crash: 420, noCrash: 420});
-          updateModelData1({crash: 1, noCrash: 0.2});
-          updateModelData2({crash: 420, noCrash: 420});
-          updateModelData1({crash: 1, noCrash: 0.2});
-          updateModelData2({crash: 420, noCrash: 420});
-          updateModelData1({crash: 1, noCrash: 0.2});
-          updateModelData2({crash: 420, noCrash: 420});
-          updateModelData1({crash: 1, noCrash: 0.2});
-          updateModelData2({crash: 420, noCrash: 420});
         }}
         variant="outlined"
         color="dark"

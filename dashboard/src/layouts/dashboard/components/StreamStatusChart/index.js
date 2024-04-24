@@ -37,7 +37,9 @@ ChartJS.register(
     Filler
 );
 
-function StreamStatusChart({ color, title, description, chart, input }) {
+export const cache = new Map();
+
+function StreamStatusChart({ color, title, description, chart, input, id }) {
     // create defaults
     color ??= "info";
     description ??= "";
@@ -61,34 +63,43 @@ function StreamStatusChart({ color, title, description, chart, input }) {
     // },
 
     useEffect(() => {
-        if (!isFinite(input.crash)) {
+        if (input?.crash === null || !isFinite(input.crash)) {
             return;
         }
 
-        if (!isFinite(input.noCrash)) {
+        if (input?.noCrash === null || !isFinite(input.noCrash)) {
             return;
         }
 
         const labels = data?.labels ?? [];
-        const datapoints = data?.datasets.at(0)?.data;
 
+        const datapoints = data?.datasets.at(0)?.data;
         if (datapoints === undefined || datapoints === null) {
             return;
+        }
+
+        const cachedLabels = cache.get(id.toString())?.labels ?? [];
+        if (cachedLabels) {
+            for (const label of cachedLabels) {
+                labels.push(label);
+            }
+        }
+
+        const cachedDatapoints = cache.get(id.toString())?.datapoints ?? [];
+        if (cachedDatapoints) {
+            for (const point of cachedDatapoints) {
+                datapoints.push(point);
+            }
         }
 
         labels.push(input.noCrash);
         datapoints.push(input.crash);
 
-        // make a copy of data, to make sure that detection cycle is invoked
-        // addData({
-        //     ...data,
-        //     labels: [...data.labels],
-        //     datasets: [
-        //         {
-        //             data: [...datapoints],
-        //         }
-        //     ],
-        // });
+        cache.set(id.toString(), {
+            labels: [...labels],
+            datapoints: [...datapoints],
+        });
+
         addData(data);
     }, [input]);
 
@@ -140,9 +151,6 @@ StreamStatusChart.propTypes = {
     ]),
     title: PropTypes.string.isRequired,
     description: PropTypes.oneOfType([PropTypes.string, PropTypes.node]),
-    chart: PropTypes.objectOf(
-        PropTypes.oneOfType([PropTypes.array, PropTypes.object])
-    ).isRequired,
 };
 
 export default StreamStatusChart;
