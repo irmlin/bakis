@@ -10,15 +10,15 @@ from typing import List, Any, Dict
 
 import cv2
 import numpy as np
+import onnxruntime as ort
 
 from ..ml import PickableInferenceSession
+from ..utilities import execution_time
 
 
 class WorkerMLInference:
-    def __init__(self, on_done: callable, batch_size: int = 5, img_h: int = 128, img_w: int = 128) -> None:
+    def __init__(self, on_done: callable, batch_size: int = 30, img_h: int = 128, img_w: int = 128) -> None:
         self.__queue = multiprocessing.Queue(maxsize=500)
-        self.__session = PickableInferenceSession(
-            model_path='/home/irmantas/Desktop/bakis/data_prep/output/transformer/video_classifier_every_2nd.onnx')
         self.__on_done = on_done
         self.__batch_size = batch_size
         self.__img_h = img_h
@@ -28,9 +28,8 @@ class WorkerMLInference:
         self.__to_delete = []
         self.__feature_extractor_onnx_path = 'app/src/ml/models/feature_extractor_gpu.onnx'
         self.__transformer_onnx_path = 'app/src/ml/models/transformer_gpu.onnx'
-        print(os.getcwd())
-        self.__feature_extractor_session = PickableInferenceSession(self.__feature_extractor_onnx_path)
-        self.__transformer_session = PickableInferenceSession(self.__transformer_onnx_path)
+        self.__feature_extractor_session = None
+        self.__transformer_session = None
 
     def add(self, data) -> None:
         try:
@@ -43,6 +42,10 @@ class WorkerMLInference:
         Process(target=self.__do_work, name='PROCESS_worker_ml_inference').start()
 
     def __do_work(self) -> None:
+        self.__feature_extractor_session = (
+            ort.InferenceSession(self.__feature_extractor_onnx_path, providers=['CUDAExecutionProvider']))
+        self.__transformer_session = (
+            ort.InferenceSession(self.__transformer_onnx_path, providers=['CPUExecutionProvider']))
         while 1:
             try:
                 # TODO: timeout
@@ -62,9 +65,9 @@ class WorkerMLInference:
                 if not self.__all_batches_ready():
                     continue
 
-                # scores = self.__infer()
-                scores = np.random.rand(len(self.__batch_data), 2)
-                # print(scores)
+                scores = self.__infer()
+                # scores = np.random.rand(len(self.__batch_data), 2)
+                print(f'PREDICTED: {scores}')
                 for i in range(self.__batch_size):
                     for j, s in enumerate(self.__batch_data.keys()):
                         frames = self.__batch_data[s]['frames']
@@ -72,7 +75,8 @@ class WorkerMLInference:
                             # All frames have been sent
                             continue
                         fn = self.__batch_data[s]['frame_nums'][i]
-                        _, enc_frame = cv2.imencode(".jpg", frames[i], [int(cv2.IMWRITE_JPEG_QUALITY), 20])
+                        frame_to_send = cv2.resize(frames[i], (frames[i].shape[1]//2, frames[i].shape[0]//2))
+                        _, enc_frame = cv2.imencode(".jpg", frame_to_send, [int(cv2.IMWRITE_JPEG_QUALITY), 20])
                         # TODO: perhaps, if success==False, should simply sent 0 model scores.
                         is_final_frame = (s in self.__last_frame_hit and
                                           (len(frames) <= self.__batch_size) and
@@ -104,6 +108,7 @@ class WorkerMLInference:
                                          'frame_nums': data['frame_nums'][self.__batch_size:]}
                              for source_id, data in self.__batch_data.items()}
 
+    @execution_time
     def __infer(self) -> np.ndarray:
         input_tensor = self.__get_input_tensor()
         features = self.__feature_extractor_session.run(["output_0"], {"inputs": input_tensor})[0]
@@ -118,16 +123,18 @@ class WorkerMLInference:
             reshaped_features[i] = features[i * self.__batch_size: i * self.__batch_size + self.__batch_size]
         return reshaped_features
 
+    @execution_time
     def __get_input_tensor(self):
         tensor = np.zeros((len(self.__batch_data) * self.__batch_size,
                            self.__img_h, self.__img_w, 3), dtype=np.float32)
 
         for i, source_id in enumerate(self.__batch_data.keys()):
-            for j, frame in enumerate(self.__batch_data[source_id]['frames']):
+            num_frames = (self.__batch_size if len(self.__batch_data[source_id]['frames']) > self.__batch_size else
+                          len(self.__batch_data[source_id]['frames']))
+            for j, frame in enumerate(self.__batch_data[source_id]['frames'][:num_frames]):
                 resized_frame = cv2.resize(frame, (self.__img_h, self.__img_w))
                 resized_frame = resized_frame[:, :, [2, 1, 0]]
                 tensor[i * self.__batch_size + j] = resized_frame
-
         return tensor.astype(np.float32)
 
     def __set_batch_ready(self, source_id: int, success: bool) -> None:

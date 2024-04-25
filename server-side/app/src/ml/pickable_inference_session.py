@@ -3,7 +3,7 @@ import onnxruntime as ort
 
 def init_session(model_path):
     sess = ort.InferenceSession(model_path, providers=['CUDAExecutionProvider'])
-    print(ort.get_device())
+    print(f'Initialized ONNX runtime session for model {model_path}, session device: {ort.get_device()}')
     return sess
 
 

@@ -59,7 +59,6 @@ class WorkerStreamReader:
 
             frame_num = cap_info['frame_num']
             cap_info['frame_num'] += 1
-            # print(f'R. source {source_id} {success} frame_num {frame_num}')
             self.__on_done((source_id, frame, success, frame_num))
 
         return finished_ids

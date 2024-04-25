@@ -40,14 +40,14 @@ class MediaService:
         self.__frames_queue = Queue(maxsize=500)
         self.__internal_queues: Dict[int, Dict[str, Any]] = {}
         self.__frames_buffer_size = 30
-        self.__pipeline_fps = 20
+        self.__pipeline_fps = 16
         self.__active_source_id = None
         # Whether streaming job is active
         self.__job_started = False
 
         # Workers
         self.__worker_ml_inference = WorkerMLInference(on_done=self.__put_processed_frames_to_queue,
-                                                       batch_size=5)
+                                                       batch_size=30)
         self.__worker_stream_reader = WorkerStreamReader(shared_sources_dict=self.__shared_sources_dict,
                                                          on_done=self.__worker_ml_inference.add)
         self.__worker_stream_reader.start()
@@ -159,11 +159,18 @@ class MediaService:
         with self.__connections_lock:
             if success and enc_frame is not None:
                 if source_id in self.__connections.keys():
+                    ws_to_remove = []
                     for ws in self.__connections[source_id]:
                         # TODO: MUST add WebSocketDisconnect catching here
-                        await ws.send_bytes(enc_frame.tobytes())
-                        await ws.send_json({'scores': scores.tolist()})
-                        self.__internal_queues[source_id]['last_sent_time'] = time.time()
+                        try:
+                            await ws.send_bytes(enc_frame.tobytes())
+                            await ws.send_json({'scores': scores.tolist()})
+                            self.__internal_queues[source_id]['last_sent_time'] = time.time()
+                        except WebSocketDisconnect as e:
+                            ws_to_remove.append(ws)
+                    for ws in ws_to_remove:
+                        print('socket disconnected from client during streaming', source_id)
+                        self.__connections[source_id].remove(ws)
             else:
                 # Stream ended
                 db_video = self.get_video_by_id(db, source_id)
@@ -174,8 +181,12 @@ class MediaService:
                     # Send stream end messages to all sockets, then close connection.
                     for ws in self.__connections[source_id]:
                         # TODO: MUST add WebSocketDisconnect catching here
-                        await ws.send_json({'source_id': source_id, 'detail': 'Video stream ended!'})
-                        await ws.close()
+                        try:
+                            await ws.send_json({'source_id': source_id, 'detail': 'Video stream ended!'})
+                            await ws.close()
+                        except WebSocketDisconnect as e:
+                            # We will delete all source's connections regardless
+                            pass
                     del self.__connections[source_id]
 
     def __frame_ready_for_stream(self, source_id: int):
@@ -210,11 +221,11 @@ class MediaService:
         return {'detail': f'Stream terminated for source (id={source_id})!'}
 
     def __put_processed_frames_to_queue(self, data):
-        if self.__frames_queue.full():
-            print(f'__frames_queue is full!')
+        try:
+            self.__frames_queue.put(data, block=True)
+        except queue.Full:
+            print(f'WorkerMLInference queue is full! Element not added.')
             return
-
-        self.__frames_queue.put(data)
 
     @staticmethod
     def get_file_size(file: UploadFile) -> int:

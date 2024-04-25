@@ -1,7 +1,7 @@
-import asyncio
-import multiprocessing
 from contextlib import asynccontextmanager
-from multiprocessing import freeze_support
+
+import uvicorn
+from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
@@ -11,7 +11,6 @@ from fastapi.staticfiles import StaticFiles
 from src import root_router
 from src.database import engine
 from src.models import Base
-# from src.controllers import stream_router
 from src.settings import HOST, PORT
 
 
@@ -23,6 +22,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
 
 # Allow requests from http://localhost:3000
 # Good for developement stage
@@ -39,9 +39,4 @@ app.include_router(root_router)
 
 
 if __name__ == "__main__":
-    # Required for CUDA to execute in a separate process
-    # multiprocessing.set_start_method('spawn')
     uvicorn.run("main:app", host=HOST, port=PORT, log_level="info", reload=True)
-
-# if __name__ == "__main__":
-#     freeze_support()
