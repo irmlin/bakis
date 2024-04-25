@@ -2,6 +2,7 @@ from datetime import datetime
 
 from sqlalchemy import Column, Integer, String, DateTime
 from sqlalchemy import Enum as EnumType
+from sqlalchemy.orm import relationship
 
 from .enums import SourceStatus
 from ..database import Base
@@ -17,3 +18,5 @@ class Video(Base):
     file_path = Column(String(250))
     created_at = Column(DateTime, default=datetime.utcnow())
     status = Column(EnumType(SourceStatus), default=SourceStatus.NOT_PROCESSED)
+
+    accidents = relationship("Accident", back_populates="video")

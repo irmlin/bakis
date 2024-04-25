@@ -67,7 +67,7 @@ class WorkerMLInference:
 
                 scores = self.__infer()
                 # scores = np.random.rand(len(self.__batch_data), 2)
-                print(f'PREDICTED: {scores}')
+                print(f'ML PREDICTED: {scores}')
                 for i in range(self.__batch_size):
                     for j, s in enumerate(self.__batch_data.keys()):
                         frames = self.__batch_data[s]['frames']
@@ -75,7 +75,8 @@ class WorkerMLInference:
                             # All frames have been sent
                             continue
                         fn = self.__batch_data[s]['frame_nums'][i]
-                        frame_to_send = cv2.resize(frames[i], (frames[i].shape[1]//2, frames[i].shape[0]//2))
+                        # frame_to_send = cv2.resize(frames[i], (frames[i].shape[1]//2, frames[i].shape[0]//2))
+                        frame_to_send = frames[i]
                         _, enc_frame = cv2.imencode(".jpg", frame_to_send, [int(cv2.IMWRITE_JPEG_QUALITY), 20])
                         # TODO: perhaps, if success==False, should simply sent 0 model scores.
                         is_final_frame = (s in self.__last_frame_hit and
@@ -85,7 +86,9 @@ class WorkerMLInference:
                             self.__to_delete.append(s)
                         self.__on_done((s, enc_frame, scores[j], not is_final_frame, fn))
 
+                print('ML SENT BATCH')
                 for s in self.__to_delete:
+                    print('ML DELETED SOURCE.')
                     self.__remove_finished_source(s)
                 self.__to_delete = []
                 self.__reset_batches()
@@ -108,7 +111,6 @@ class WorkerMLInference:
                                          'frame_nums': data['frame_nums'][self.__batch_size:]}
                              for source_id, data in self.__batch_data.items()}
 
-    @execution_time
     def __infer(self) -> np.ndarray:
         input_tensor = self.__get_input_tensor()
         features = self.__feature_extractor_session.run(["output_0"], {"inputs": input_tensor})[0]
@@ -123,7 +125,6 @@ class WorkerMLInference:
             reshaped_features[i] = features[i * self.__batch_size: i * self.__batch_size + self.__batch_size]
         return reshaped_features
 
-    @execution_time
     def __get_input_tensor(self):
         tensor = np.zeros((len(self.__batch_data) * self.__batch_size,
                            self.__img_h, self.__img_w, 3), dtype=np.float32)

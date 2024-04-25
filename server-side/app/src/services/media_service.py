@@ -1,5 +1,4 @@
 import asyncio
-import json
 import multiprocessing
 import os
 import queue
@@ -10,14 +9,16 @@ import time
 import traceback
 import uuid
 from multiprocessing import Queue
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
+import numpy as np
 from fastapi import UploadFile, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks
 from sqlalchemy.orm import Session
+import cv2
 
 from ..ml import WorkerMLInference
-from ..models import Video
-from ..models.enums import SourceStatus
+from ..models import Video, Accident
+from ..models.enums import SourceStatus, AccidentType
 from ..schemas import VideoCreate
 from ..stream import WorkerStreamReader
 from ..utilities.file_size import FileSize
@@ -38,10 +39,12 @@ class MediaService:
         self.__connections_lock = threading.Lock()
         # Queue of frames which have been inferred on and are ready for streaming
         self.__frames_queue = Queue(maxsize=500)
-        self.__internal_queues: Dict[int, Dict[str, Any]] = {}
+        self.__internal_state: Dict[int, Dict[str, Any]] = {}
         self.__frames_buffer_size = 30
-        self.__pipeline_fps = 16
+        self.__pipeline_fps = 26
         self.__active_source_id = None
+        self.__alarm_score_thr = 0.8
+        self.__alarm_timeout = 10 * 60
         # Whether streaming job is active
         self.__job_started = False
 
@@ -105,9 +108,11 @@ class MediaService:
             raise HTTPException(status_code=404, detail=f'Video (id={video_id}) file not found')
 
         self.__worker_stream_reader.add_source(video_id, db_video.file_path)
-        # TODO: removed hardcoded FPS
-        self.__internal_queues[video_id] = {'q': queue.Queue(maxsize=500), 'ready': False,
-                                            'last_sent_time': time.time(), 'wait_time': 1/self.__pipeline_fps}
+        self.__internal_state[video_id] = {'q': queue.Queue(maxsize=1000),
+                                           'ready': False,
+                                           'last_sent_time': time.time(),
+                                           'wait_time': 1 / self.__pipeline_fps,
+                                           'last_alarm_time': None}
         # Update source status
         db_video.status = SourceStatus.PROCESSING
         db.commit()
@@ -136,11 +141,23 @@ class MediaService:
     async def __stream_to_client(self, db: Session):
         while 1:
             try:
+                # TODO: what would happen, if less than buffer amount of frames get here, before stream terminates.
+                # TODO: need to handle frame rate in other components as well
                 source_id, enc_frame, result, success, frame_num = self.__frames_queue.get(block=False)
-                self.__internal_queues[source_id]['q'].put((source_id, enc_frame, result, success, frame_num))
+                self.__internal_state[source_id]['q'].put((source_id, enc_frame, result, success, frame_num), block=False)
                 self.__set_internal_q_buffer_ready(source_id)
             except queue.Empty:
-                source_ids = list(self.__internal_queues.keys())
+                source_ids = list(self.__internal_state.keys())
+                for source_id in source_ids:
+                    if self.__frame_ready_for_stream(source_id=source_id):
+                        await self.__handle_stream(source_id=source_id, db=db)
+                # Allow other requests to process while no streams are running
+                await asyncio.sleep(0.01)
+            except queue.Full:
+                # TODO. Duplicate code
+                # TODO. Lost information about ended stream.
+                print(f'Internal frames queue was full. Dropping frames!')
+                source_ids = list(self.__internal_state.keys())
                 for source_id in source_ids:
                     if self.__frame_ready_for_stream(source_id=source_id):
                         await self.__handle_stream(source_id=source_id, db=db)
@@ -153,11 +170,13 @@ class MediaService:
 
     async def __handle_stream(self, source_id: int, db: Session):
         try:
-            _, enc_frame, scores, success, frame_num = self.__internal_queues[source_id]['q'].get(block=False)
+            _, enc_frame, scores, success, frame_num = self.__internal_state[source_id]['q'].get(block=False)
         except queue.Empty:
             return
         with self.__connections_lock:
             if success and enc_frame is not None:
+                # Verify alarm status
+                self.__handle_accident(db=db, source_id=source_id, scores=scores, enc_frame=enc_frame)
                 if source_id in self.__connections.keys():
                     ws_to_remove = []
                     for ws in self.__connections[source_id]:
@@ -165,7 +184,7 @@ class MediaService:
                         try:
                             await ws.send_bytes(enc_frame.tobytes())
                             await ws.send_json({'scores': scores.tolist()})
-                            self.__internal_queues[source_id]['last_sent_time'] = time.time()
+                            self.__internal_state[source_id]['last_sent_time'] = time.time()
                         except WebSocketDisconnect as e:
                             ws_to_remove.append(ws)
                     for ws in ws_to_remove:
@@ -176,7 +195,7 @@ class MediaService:
                 db_video = self.get_video_by_id(db, source_id)
                 db_video.status = SourceStatus.PROCESSED
                 db.commit()
-                del self.__internal_queues[source_id]
+                del self.__internal_state[source_id]
                 if source_id in self.__connections.keys():
                     # Send stream end messages to all sockets, then close connection.
                     for ws in self.__connections[source_id]:
@@ -189,18 +208,44 @@ class MediaService:
                             pass
                     del self.__connections[source_id]
 
+    def __handle_accident(self, db: Session, source_id: int, scores: np.ndarray, enc_frame: np.ndarray):
+        if self.__check_accident(source_id=source_id, scores=scores):
+            print('ACCIDENT')
+            self.__save_accident(db=db, source_id=source_id, enc_frame=enc_frame)
+
+    def __save_accident(self, db: Session, source_id: int, enc_frame: np.ndarray):
+        image_name = f"{uuid.uuid4()}.jpg"
+        image_path = f'app/static/{image_name}'
+        img = cv2.imdecode(np.frombuffer(enc_frame, dtype=np.uint8), cv2.IMREAD_COLOR)
+        cv2.imwrite(image_path, img)
+
+        accident = Accident(type=AccidentType.CAR_CRASH, image_path=image_path, video_id=source_id)
+        db.add(accident)
+        db.commit()
+
+    def __check_accident(self, source_id: int, scores: np.ndarray) -> bool:
+        ts = time.time()
+        if ((self.__internal_state[source_id]['last_alarm_time'] is not None and
+                ts - self.__internal_state[source_id]['last_alarm_time'] < self.__alarm_timeout) or
+                scores[0] < self.__alarm_score_thr):
+            return False
+
+        self.__internal_state[source_id]['last_alarm_time'] = ts
+        return True
+
     def __frame_ready_for_stream(self, source_id: int):
         return (
-            self.__internal_queues[source_id]['ready'] and
-            time.time() - self.__internal_queues[source_id]['last_sent_time'] >= self.__internal_queues[source_id]['wait_time']
+                self.__internal_state[source_id]['ready'] and
+                time.time() - self.__internal_state[source_id]['last_sent_time'] >= self.__internal_state[source_id][
+                    'wait_time']
         )
 
     def __set_internal_q_buffer_ready(self, source_id):
-        if self.__internal_queues[source_id]['ready']:
+        if self.__internal_state[source_id]['ready']:
             return
-        if self.__internal_queues[source_id]['q'].qsize() >= self.__frames_buffer_size:
+        if self.__internal_state[source_id]['q'].qsize() >= self.__frames_buffer_size:
             print(f'Buffered frames for source {source_id}, will start streaming!')
-            self.__internal_queues[source_id]['ready'] = True
+            self.__internal_state[source_id]['ready'] = True
 
     async def terminate_live_stream(self, db: Session, source_id: int):
         print('connections before: ', self.__connections)
