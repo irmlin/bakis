@@ -55,6 +55,7 @@ export default function LiveStreamControlPanel(props) {
         const responseStartStream = await startStream(video_id);
         if (responseStartStream) {
             if (responseStartStream.status === 200) {
+                onSourceDialogClose();
                 console.log(`Video ID ${video_id} is now being streamed.`)
                 onNewSourceTrigger(!newSourceTrigger);
             } else {
@@ -92,38 +93,39 @@ export default function LiveStreamControlPanel(props) {
 
     return (
         <>
-            <MDBox mt={4.5}>
+            <MDBox mt={2} mb={4}>
                 <MDButton
                   onClick={onSelectVideoSourceButtonClick}
-                  variant="outlined"
-                  color="dark"
+                  variant="contained"
+                  color="info"
                 >
-                  Select video source for analysis
+                  ADD VIDEO SOURCE
                 </MDButton>
             </MDBox>
             <Dialog
               open={sourceDialogOpen}
               onClose={onSourceDialogClose}
+              fullWidth
             >
                 <DialogTitle>Select Video Source for Analysis</DialogTitle>
                 <DialogContent>
-                    <DialogContentText>
-                        Upload new video source
-                    </DialogContentText>
-                    <MDInput label="Source title" fullWidth onChange={onTitleTextfieldChange} />
-                    <MDInput label="Source description" fullWidth onChange={onDescriptionTextfieldChange} />
+                    <MDBox mb={1} mt={1}>
+                        <MDInput label="Video Source Title" fullWidth onChange={onTitleTextfieldChange} />
+                    </MDBox>
+                    <MDBox mb={1}>
+                        <MDInput label="Video Source Description" fullWidth onChange={onDescriptionTextfieldChange} />
+                    </MDBox>
                     <input
                         type="file"
                         onChange={handleFileChange}
                         accept=".mov,.mp4,.avi"
                     />
-                    {/*<button onClick={handleChoose}>Choose</button>*/}
                 </DialogContent>
                 <DialogActions>
                     <MDButton
                         onClick={onStartAnalysisButtonClick}
-                        variant="outlined"
-                        color="dark"
+                        variant="contained"
+                        color="success"
                     >
                     Start analysis
                     </MDButton>

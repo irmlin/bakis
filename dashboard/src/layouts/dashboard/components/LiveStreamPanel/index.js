@@ -64,7 +64,6 @@ export default function LiveStreamPanel(props) {
                   stream && (
                       <Grid item xs={12} md={6} lg={6} key={index}>
                           <div>
-                              Streaminu {stream.id} is {stream.wsUrl}
                               <StreamPlayer streamInfo={stream}
                                             onStreamRemove={() => handleRemoveStream(stream.id)}
                               />

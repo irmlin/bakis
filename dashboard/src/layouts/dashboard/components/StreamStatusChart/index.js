@@ -37,7 +37,7 @@ ChartJS.register(
     Filler
 );
 
-function StreamStatusChart({ color, title, description, modelScores, chart, historySecs }) {
+function StreamStatusChart({ color, title, description, modelScores, chart, size }) {
 
     color ??= "info";
     description ??= "";
@@ -49,11 +49,7 @@ function StreamStatusChart({ color, title, description, modelScores, chart, hist
         },
     };
 
-    const { initialData, options } = configs(
-        chart?.labels || [],
-        chart?.datasets || {}
-    );
-
+    const { initialData, options } = configs();
     const [data, setData] = useState(initialData);
 
     useEffect(() => {
@@ -62,25 +58,18 @@ function StreamStatusChart({ color, title, description, modelScores, chart, hist
         const labels = data?.labels ?? [];
         const datasets = data?.datasets ?? [];
 
-        const crash_datapoints = data?.datasets.at(0)?.data;
-        if (crash_datapoints === undefined || crash_datapoints === null) {
-            return;
-        }
-
-        const nocrash_datapoints = data?.datasets.at(1)?.data;
-        if (nocrash_datapoints === undefined || nocrash_datapoints === null) {
-            return;
-        }
-
-        if (labels.length < historySecs) {
+        if (labels.length < size) {
             labels.push('');
         }
 
-        if (crash_datapoints.length === historySecs) {
+        const crash_datapoints = datasets[0].data;
+        const nocrash_datapoints = datasets[1].data;
+
+        if (crash_datapoints.length === size) {
             crash_datapoints.shift();
         }
 
-        if (nocrash_datapoints.length === historySecs) {
+        if (nocrash_datapoints.length === size) {
             nocrash_datapoints.shift();
         }
 
@@ -95,37 +84,20 @@ function StreamStatusChart({ color, title, description, modelScores, chart, hist
     }, [modelScores]);
 
     return (
-        <Card sx={{ height: "100%" }}>
-            <MDBox padding="1rem">
-                <MDBox
-                    variant="gradient"
-                    bgColor={color}
-                    borderRadius="lg"
-                    coloredShadow={color}
-                    py={2}
-                    pr={0.5}
-                    mt={-5}
-                    height="12.5rem"
-                >
-                    data && (
-                        <Line data={data} options={options}/>
-                    )
-                </MDBox>
-                <MDBox pt={3} pb={1} px={1}>
-                    <MDTypography variant="h6" textTransform="capitalize">
-                        {title}
-                    </MDTypography>
-                    <MDTypography
-                        component="div"
-                        variant="button"
-                        color="text"
-                        fontWeight="light"
-                    >
-                        {description}
-                    </MDTypography>
-                </MDBox>
+        <MDBox>
+            <MDBox
+                variant="gradient"
+                bgColor={color}
+                borderRadius="lg"
+                coloredShadow={color}
+                // py={2}
+                // pr={0.5}
+                // mt={-5}
+                height="10rem"
+            >
+                <Line data={data} options={options}/>
             </MDBox>
-        </Card>
+        </MDBox>
     );
 }
 

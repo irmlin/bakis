@@ -5,9 +5,11 @@ import MDButton from "../MDButton";
 import Icon from "@mui/material/Icon";
 import DeleteIcon from '@mui/icons-material/Delete';
 import IconButton from "@mui/material/IconButton";
-import {Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle} from "@mui/material";
+import {CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle} from "@mui/material";
 import MDInput from "../MDInput";
 import StreamStatusChart from "../../layouts/dashboard/components/StreamStatusChart";
+import Card from "@mui/material/Card";
+import MDBox from "../MDBox";
 
 export const StreamPlayer = (props) => {
 
@@ -16,6 +18,10 @@ export const StreamPlayer = (props) => {
   const [streamEndAlertVisible, setStreamEndAlertVisible] = useState(false);
   const [removeConfirmDialogOpen, setRemoveConfirmDialogOpen] = useState(false);
   const [modelScores, setModelScores] = useState([]);
+  const hitCountForChartUpdate = 30;
+  let counter = 0;
+  const [loading, setLoading] = useState(true);
+  let firstFrameReceived = false;
 
   const wsRef = useRef(null);
   const {streamInfo, onStreamRemove} = props;
@@ -24,12 +30,20 @@ export const StreamPlayer = (props) => {
     if (!wsRef.current) {
       const ws = wsRef.current = new WebSocket(streamInfo.wsUrl);
       ws.onmessage = (event) => {
-        if(event.data instanceof Blob) {
+        if (event.data instanceof Blob) {
+          if (!firstFrameReceived) {
+            firstFrameReceived = true;
+            setLoading(false);
+          }
           setFrame(URL.createObjectURL(event.data));
         } else {
           const parsed = JSON.parse(event.data);
           if ("scores" in parsed) {
-            setModelScores(parsed.scores);
+            if (counter === hitCountForChartUpdate) {
+              setModelScores(parsed.scores);
+              counter = 0;
+            }
+            counter = counter + 1;
           } else if ("detail" in parsed) {
             setStreamEndMessage(parsed.detail);
             setStreamEndAlertVisible(true);
@@ -121,51 +135,77 @@ export const StreamPlayer = (props) => {
   // }, [playerRef]);
 
   return (
-    <>
-      <div style={{position: "relative"}}>
-        <IconButton color="error" size="large" onClick={openRemoveConfirmDialog}>
-          <DeleteIcon/>
-        </IconButton>
-        <img src={frame} style={{top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain'}} alt="Video"/>
-        {streamEndAlertVisible && (
-          <MDAlert
-            color="dark"
-            style={{position: 'absolute', bottom: 0, left: 0, width: '100%', margin: 0}}
-          >
-            {streamEndMessage}
-          </MDAlert>
-        )}
-        <StreamStatusChart
-          color="dark"
-          title="Completed tasks title"
-          description="Last Campaign Performance"
-          modelScores={modelScores}
-          historySecs={30}
-        />
-      </div>
-      <Dialog
-        open={removeConfirmDialogOpen}
-        onClose={closeRemoveConfirmDialog}
-      >
-        <DialogTitle>Terminate stream for <i>{streamInfo.title}?</i></DialogTitle>
-        <DialogActions>
-          <MDButton
-            onClick={onConfirmRemoveButtonClick}
-            variant="contained"
-            color="error"
-          >
-            YES
-          </MDButton>
-          <MDButton
-            onClick={closeRemoveConfirmDialog}
-            variant="contained"
-            color="info"
-          >
-            CANCEL
-          </MDButton>
-        </DialogActions>
-      </Dialog>
-    </>
+    <Card sx={{height: "100%"}}>
+      {
+        loading ? (
+          <MDBox mb={5} mt={5} display="flex" justifyContent="center">
+            <CircularProgress color={'info'}/>
+          </MDBox>
+        ) : (
+          <>
+            <div style={{position: "relative", padding: "1rem"}}>
+              <img src={frame} style={{top: 0, left: 0, width: '100%', height: '100%', objectFit: 'contain'}}
+                   alt="Video"/>
+              {/*{streamEndAlertVisible && (*/}
+              {/*  <MDAlert*/}
+              {/*    color="dark"*/}
+              {/*    style={{position: 'absolute', bottom: 0, left: 0, width: '100%', margin: 0}}*/}
+              {/*  >*/}
+              {/*    {streamEndMessage}*/}
+              {/*  </MDAlert>*/}
+              {/*)}*/}
+              <StreamStatusChart
+                color="dark"
+                title="Completed tasks title"
+                description="Last Campaign Performance"
+                modelScores={modelScores}
+                size={30}
+              />
+              <div style={{paddingTop: 7, display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                <MDBox>
+                  <MDTypography variant="h6" textTransform="capitalize">
+                    {streamInfo.title}
+                  </MDTypography>
+                  <MDTypography
+                    component="div"
+                    variant="button"
+                    color="text"
+                    fontWeight="light"
+                  >
+                    {streamInfo.description}
+                  </MDTypography>
+                </MDBox>
+                <IconButton color="error" size="large" onClick={openRemoveConfirmDialog}>
+                  <DeleteIcon/>
+                </IconButton>
+              </div>
+            </div>
+            <Dialog
+              open={removeConfirmDialogOpen}
+              onClose={closeRemoveConfirmDialog}
+            >
+              <DialogTitle>Terminate stream for <i>{streamInfo.title}?</i></DialogTitle>
+              <DialogActions>
+                <MDButton
+                  onClick={onConfirmRemoveButtonClick}
+                  variant="contained"
+                  color="error"
+                >
+                  YES
+                </MDButton>
+                <MDButton
+                  onClick={closeRemoveConfirmDialog}
+                  variant="contained"
+                  color="info"
+                >
+                  CANCEL
+                </MDButton>
+              </DialogActions>
+            </Dialog>
+          </>
+        )
+      }
+    </Card>
   );
 }
 

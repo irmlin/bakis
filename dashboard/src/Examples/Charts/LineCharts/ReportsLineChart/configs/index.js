@@ -13,35 +13,35 @@ Coded by www.creative-tim.com
 * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 */
 
-function configs(labels, datasets) {
+function configs() {
   return {
-    data: {
-      labels,
+    initialData: {
+      labels: [],
       datasets: [
         {
           label: 'Crash',
           tension: 0,
-          pointRadius: 5,
+          pointRadius: 2,
           pointBorderColor: "transparent",
-          pointBackgroundColor: "rgba(255, 255, 255, .8)",
-          borderColor: "rgba(255, 255, 255, .8)",
-          borderWidth: 4,
+          pointBackgroundColor: "rgba(255, 50, 50, .8)",
+          borderColor: "rgba(255, 50, 50, .8)",
+          borderWidth: 2,
           backgroundColor: "transparent",
           fill: true,
-          data: datasets.data,
+          data: [],
           maxBarThickness: 6,
         },
         {
           label: 'No Crash',
           tension: 0,
-          pointRadius: 5,
+          pointRadius: 2,
           pointBorderColor: "transparent",
-          pointBackgroundColor: "rgba(255, 255, 255, .8)",
-          borderColor: "rgba(255, 255, 255, .8)",
-          borderWidth: 4,
+          pointBackgroundColor: "rgba(50, 255, 50, .8)",
+          borderColor: "rgba(50, 255, 50, .8)",
+          borderWidth: 2,
           backgroundColor: "transparent",
           fill: true,
-          data: datasets.data,
+          data: [],
           maxBarThickness: 6,
         },
       ],
@@ -51,7 +51,15 @@ function configs(labels, datasets) {
       maintainAspectRatio: false,
       plugins: {
         legend: {
-          display: false,
+          display: true,
+          position: 'top',
+          labels: {
+            boxWidth: 6,
+            boxHeight: 6,
+            color: 'white',
+            usePointStyle: true,
+            pointStyle: 'circle'
+          }
         },
       },
       interaction: {
@@ -64,7 +72,7 @@ function configs(labels, datasets) {
             drawBorder: false,
             display: true,
             drawOnChartArea: true,
-            drawTicks: false,
+            drawTicks: true,
             borderDash: [5, 5],
             color: "rgba(255, 255, 255, .2)",
           },
