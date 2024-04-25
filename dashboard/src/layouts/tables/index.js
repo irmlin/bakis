@@ -11,7 +11,7 @@ Coded by www.creative-tim.com
  =========================================================
 
 * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-*/
+ */
 
 // @mui material components
 import Grid from "@mui/material/Grid";
@@ -27,13 +27,70 @@ import DashboardNavbar from "Examples/Navbars/DashboardNavbar";
 import Footer from "Examples/Footer";
 import DataTable from "Examples/Tables/DataTable";
 
-// Data
-import authorsTableData from "layouts/tables/data/authorsTableData";
-import projectsTableData from "layouts/tables/data/projectsTableData";
+import {useEffect, useState} from "react";
+import {getAccidents} from "../../Services/AccidentService";
+import {CircularProgress} from "@mui/material";
+import ImageLoader from "./components/ImageLoader";
 
-function Tables() {
-  const { columns, rows } = authorsTableData();
-  const { columns: pColumns, rows: pRows } = projectsTableData();
+function Accidents() {
+
+  const columns = [
+      { Header: "detected", accessor: "detected", width: "45%", align: "left" },
+      { Header: "type", accessor: "type", align: "left" },
+      { Header: "image", accessor: "image", align: "center" },
+    ];
+
+  const accidentTypeMap = {"CAR_CRASH": "Car Crash"}
+
+  const [accidents, setAccidents] = useState([]);
+  const [rows, setRows] = useState([]);
+
+    function createRows() {
+      if (!accidents) {
+        return [];
+      }
+
+      return accidents.map((accident, index) => (
+        {
+          detected: (
+            <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
+              {accident["created_at"]}
+            </MDTypography>
+          ),
+          type: (
+            <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
+              {accidentTypeMap[accident["type"]] || accident["type"]}
+            </MDTypography>
+          ),
+          image: (
+            <ImageLoader accidentId={accident.id}/>
+          )
+        }
+      ));
+    }
+
+    useEffect(() => {
+      const fetchAccidents = async () => {
+          const response = await getAccidents();
+          if (response) {
+              if (response.status === 200) {
+                console.log(accidents);
+                setAccidents(response.data);
+              } else {
+                  console.error('Error on fetching all accidents: ', response);
+              }
+          } else {
+              console.error('No response from the server while fetching all accidents!');
+          }
+      };
+        fetchAccidents().then(r => {});
+    }, [])
+
+
+    useEffect(() => {
+      setRows(createRows());
+    }, [accidents]);
+
 
   return (
     <DashboardLayout>
@@ -53,39 +110,12 @@ function Tables() {
                 coloredShadow="info"
               >
                 <MDTypography variant="h6" color="white">
-                  Authors Table
+                  Accidents
                 </MDTypography>
               </MDBox>
               <MDBox pt={3}>
                 <DataTable
                   table={{ columns, rows }}
-                  isSorted={false}
-                  entriesPerPage={false}
-                  showTotalEntries={false}
-                  noEndBorder
-                />
-              </MDBox>
-            </Card>
-          </Grid>
-          <Grid item xs={12}>
-            <Card>
-              <MDBox
-                mx={2}
-                mt={-3}
-                py={3}
-                px={2}
-                variant="gradient"
-                bgColor="info"
-                borderRadius="lg"
-                coloredShadow="info"
-              >
-                <MDTypography variant="h6" color="white">
-                  Projects Table
-                </MDTypography>
-              </MDBox>
-              <MDBox pt={3}>
-                <DataTable
-                  table={{ columns: pColumns, rows: pRows }}
                   isSorted={false}
                   entriesPerPage={false}
                   showTotalEntries={false}
@@ -101,4 +131,4 @@ function Tables() {
   );
 }
 
-export default Tables;
+export default Accidents;

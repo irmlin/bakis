@@ -99,6 +99,7 @@ class WorkerMLInference:
                 e_type, e_object, e_traceback = sys.exc_info()
                 print(f'{current_process().name}\n'
                       f'Error:{e_type}:{e_object}\n{"".join(traceback.format_tb(e_traceback))}')
+                time.sleep(5)
 
     def __remove_finished_source(self, source_id: int) -> None:
         del self.__batch_data[source_id]

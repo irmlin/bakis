@@ -45,6 +45,7 @@ class WorkerStreamReader:
                 e_type, e_object, e_traceback = sys.exc_info()
                 print(f'{current_process().name}\n'
                       f'Error:{e_type}:{e_object}\n{"".join(traceback.format_tb(e_traceback))}')
+                time.sleep(5)
 
     def __read_caps(self) -> List[int]:
         finished_ids = []
