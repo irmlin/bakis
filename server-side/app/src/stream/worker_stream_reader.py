@@ -45,7 +45,6 @@ class WorkerStreamReader:
                 e_type, e_object, e_traceback = sys.exc_info()
                 print(f'{current_process().name}\n'
                       f'Error:{e_type}:{e_object}\n{"".join(traceback.format_tb(e_traceback))}')
-                time.sleep(5)
 
     def __read_caps(self) -> List[int]:
         finished_ids = []
@@ -53,6 +52,7 @@ class WorkerStreamReader:
             if not self.__should_read_cap(source_id): continue
             self.__update_fps_info(source_id)
             success, frame = cap_info['cap'].read()
+
             if success:
                 self.__caps[source_id]['num_read'] += 1
             else:
@@ -105,11 +105,13 @@ class WorkerStreamReader:
                         'num_read': 0,
                         'frame_num': 0
                     }
+                    print(f'READER, added {source_id}, FPS: {self.__caps[source_id]["fps"]}')
 
             # Handle removed sources (stop streaming)
             expected_source_ids = self.__sources.keys()
             for source_id in list(self.__caps.keys()):
                 if source_id not in expected_source_ids:
+                    print(f'READER, removed {source_id}')
                     removed_sources.append(source_id)
                     self.__caps[source_id]['cap'].release()
                     del self.__caps[source_id]

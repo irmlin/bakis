@@ -51,8 +51,8 @@ class MediaController:
             return await self.media_service.terminate_live_stream(db, video_id)
 
         @router.get("/video/inference/{video_id}")
-        async def start_inference(video_id: int, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-            return await self.media_service.start_inference_task(background_tasks, db, video_id)
+        async def start_inference(video_id: int, db: Session = Depends(get_db)):
+            return await self.media_service.start_inference_task(db, video_id)
 
         @router.websocket("/video/stream/{video_id}")
         async def stream_video(video_id: int, websocket: WebSocket):

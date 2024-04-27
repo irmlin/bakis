@@ -65,45 +65,63 @@ class WorkerMLInference:
                 if not self.__all_batches_ready():
                     continue
 
-                scores = self.__infer()
-                # scores = np.random.rand(len(self.__batch_data), 2)
-                print(f'ML PREDICTED: {scores}')
-                for i in range(self.__batch_size):
-                    for j, s in enumerate(self.__batch_data.keys()):
-                        frames = self.__batch_data[s]['frames']
-                        if i >= len(frames):
-                            # All frames have been sent
-                            continue
-                        fn = self.__batch_data[s]['frame_nums'][i]
-                        # frame_to_send = cv2.resize(frames[i], (frames[i].shape[1]//2, frames[i].shape[0]//2))
-                        frame_to_send = frames[i]
-                        _, enc_frame = cv2.imencode(".jpg", frame_to_send, [int(cv2.IMWRITE_JPEG_QUALITY), 20])
-                        # TODO: perhaps, if success==False, should simply sent 0 model scores.
-                        is_final_frame = (s in self.__last_frame_hit and
-                                          (len(frames) <= self.__batch_size) and
-                                          (i + 1) == len(frames))
-                        if is_final_frame:
-                            self.__to_delete.append(s)
-                        self.__on_done((s, enc_frame, scores[j], not is_final_frame, fn))
-
-                print('ML SENT BATCH')
-                for s in self.__to_delete:
-                    print('ML DELETED SOURCE.', {s})
-                    self.__remove_finished_source(s)
-                self.__to_delete = []
-                self.__reset_batches()
+                self.__process_batch()
 
             except queue.Empty:
-                pass
+                self.__process_batch()
             except BaseException as e:
                 e_type, e_object, e_traceback = sys.exc_info()
                 print(f'{current_process().name}\n'
                       f'Error:{e_type}:{e_object}\n{"".join(traceback.format_tb(e_traceback))}')
-                time.sleep(5)
+
+    def __process_batch(self) -> None:
+        if not self.__all_batches_ready():
+            return
+
+        scores = self.__infer()
+        print(f'ML PREDICTED: {scores}')
+        for i in range(self.__batch_size):
+            for j, s in enumerate(self.__batch_data.keys()):
+                frames = self.__batch_data[s]['frames']
+                if len(frames) == 0 and s in self.__last_frame_hit and s not in self.__to_delete:
+                    print(f'ML, SPECIAL. {s}')
+                    # Special case, were full batch was sent and then immediately success=False received
+                    self.__on_done((s, None, None, False, -1))
+                    self.__to_delete.append(s)
+                if i >= len(frames):
+                    # All frames have been sent
+                    continue
+                fn = self.__batch_data[s]['frame_nums'][i]
+                frame_to_send = frames[i]
+                _, enc_frame = cv2.imencode(".jpg", frame_to_send, [int(cv2.IMWRITE_JPEG_QUALITY), 20])
+                # TODO: perhaps, if success==False, should simply sent 0 model scores.
+                is_final_frame = (s in self.__last_frame_hit and
+                                  (len(frames) <= self.__batch_size) and
+                                  (i + 1) == len(frames))
+                if is_final_frame:
+                    self.__to_delete.append(s)
+                self.__on_done((s, enc_frame, scores[j], not is_final_frame, fn))
+
+        print('ML SENT BATCH')
+        self.print_batch_info()
+        for s in self.__to_delete:
+            print('ML DELETED SOURCE.', {s})
+            self.__remove_finished_source(s)
+        self.__to_delete = []
+        self.__reset_batches()
+
+    def print_batch_info(self):
+        for source_id in self.__batch_data.keys():
+            print(f'source {source_id}, num_frames: {len(self.__batch_data[source_id]["frames"])}; ', end='')
+        print()
 
     def __remove_finished_source(self, source_id: int) -> None:
+        print('ML, removing.')
+        self.print_batch_info()
         del self.__batch_data[source_id]
         self.__last_frame_hit.remove(source_id)
+        print('ML, after removing')
+        self.print_batch_info()
 
     def __reset_batches(self):
         self.__batch_data = {source_id: {'frames': data['frames'][self.__batch_size:],
@@ -148,4 +166,5 @@ class WorkerMLInference:
         for source_id, data in self.__batch_data.items():
             if not data['ready']:
                 return False
-        return True
+
+        return len(self.__batch_data) > 0

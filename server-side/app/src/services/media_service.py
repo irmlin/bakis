@@ -9,12 +9,12 @@ import time
 import traceback
 import uuid
 from multiprocessing import Queue
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any
 
-import numpy as np
-from fastapi import UploadFile, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks
-from sqlalchemy.orm import Session
 import cv2
+import numpy as np
+from fastapi import UploadFile, HTTPException, WebSocket, WebSocketDisconnect
+from sqlalchemy.orm import Session
 
 from ..ml import WorkerMLInference
 from ..models import Video, Accident
@@ -41,6 +41,7 @@ class MediaService:
         # Queue of frames which have been inferred on and are ready for streaming
         self.__frames_queue = Queue(maxsize=500)
         self.__internal_state: Dict[int, Dict[str, Any]] = {}
+        self.__sources_to_terminate = []
         self.__frames_buffer_size = 30
         self.__pipeline_fps = 32
         self.__active_source_id = None
@@ -91,15 +92,8 @@ class MediaService:
         db.commit()
         return {'detail': f'Video (id={video_id}) has been deleted.'}
 
-    async def start_inference_task(self, background_tasks: BackgroundTasks, db: Session, video_id: int):
+    async def start_inference_task(self, db: Session, video_id: int):
         if not self.__job_started:
-            # job = threading.Thread(target=asyncio.create_task, args=(self.__stream_to_client(db),),
-            #                        name='THREAD_read_processed_frames_from_queue')
-            # job.start()
-            # background_tasks.add_task(self.__stream_to_client, db)
-            # await asyncio.to_thread(self.__stream_to_client, db)
-            # asyncio.get_event_loop().run_in_executor(None, self.__stream_to_client, db)
-            # asyncio.get_event_loop().create_task(self.__stream_to_client(db))
             asyncio.create_task(self.__stream_to_client(db))
             self.__job_started = True
 
@@ -115,18 +109,16 @@ class MediaService:
                                            'last_sent_time': time.time(),
                                            'wait_time': 1 / self.__pipeline_fps,
                                            'last_alarm_time': None}
-        # Update source status
+        self.__connections[video_id] = []
         db_video.status = SourceStatus.PROCESSING
         db.commit()
         return {'detail': f'Video (id={video_id}) is being streamed.'}
 
     async def accept_connection(self, source_id: int, websocket: WebSocket):
+        if source_id not in self.__connections:
+            return {'detail': f'Stream for source {source_id} is no longer available!.'}
         await websocket.accept()
-        # async with self.__connections_lock:
-        if source_id in self.__connections.keys():
-            self.__connections[source_id].append(websocket)
-        else:
-            self.__connections[source_id] = [websocket]
+        self.__connections[source_id].append(websocket)
         try:
             while True:
                 # The websocket will be destroyed if this method terminates.
@@ -135,7 +127,7 @@ class MediaService:
                 await websocket.receive_text()
         except WebSocketDisconnect as e:
             # Handle any unexpected socket disconnect
-            print('socket disconnected from client ', source_id)
+            print('socket disconnected from client, but not removing from list yet', source_id)
             # async with self.__connections_lock:
             #     if source_id in self.__connections.keys():
             #         print('socket disconnected from client ', source_id)
@@ -178,6 +170,11 @@ class MediaService:
         except queue.Empty:
             return
         if success and enc_frame is not None:
+            if source_id in self.__sources_to_terminate:
+                # Client removed source, shouldn't process the leftover incoming frames for source.
+                # Socket object will be destroyed, once success==False is received.
+                print(f'not processing {source_id}, waiting for success=false')
+                return
             self.__handle_accident(db=db, source_id=source_id, scores=scores, enc_frame=enc_frame)
             ws_to_remove = []
             # Make shallow copy. If new connection gets appended during the following loop, no unwanted behavior will occur.
@@ -187,25 +184,30 @@ class MediaService:
                     await ws.send_bytes(enc_frame.tobytes())
                     await ws.send_json({'scores': scores.tolist()})
                     self.__internal_state[source_id]['last_sent_time'] = time.time()
-                except (WebSocketDisconnect, BaseException) as e:
+                except (WebSocketDisconnect, RuntimeError):
                     ws_to_remove.append(ws)
             for ws in ws_to_remove:
-                print('socket disconnected from client during streaming', source_id)
+                print('socket disconnected from client during streaming, removed from list', source_id)
                 self.__connections[source_id].remove(ws)
         else:
             # Stream ended
             print('ENDED, ', source_id)
-            db_video = self.get_video_by_id(db, source_id)
-            db_video.status = SourceStatus.PROCESSED
-            db.commit()
+            if source_id not in self.__sources_to_terminate:
+                db_video = self.get_video_by_id(db, source_id)
+                db_video.status = SourceStatus.PROCESSED
+                db.commit()
             del self.__internal_state[source_id]
+            if source_id in self.__sources_to_terminate:
+                self.__sources_to_terminate.remove(source_id)
             for ws in self.__connections[source_id]:
-                # TODO: MUST add WebSocketDisconnect catching here
                 try:
                     await ws.send_json({'source_id': source_id, 'detail': 'Video stream ended!'})
                     await ws.close()
-                except (WebSocketDisconnect, BaseException) as e:
+                except WebSocketDisconnect:
                     # We will delete all source's connections regardless
+                    pass
+                except RuntimeError:
+                    # Socket already disconnected from client
                     pass
             del self.__connections[source_id]
 
@@ -249,11 +251,15 @@ class MediaService:
             self.__internal_state[source_id]['ready'] = True
 
     async def terminate_live_stream(self, db: Session, source_id: int):
+        if source_id not in self.__connections.keys():
+            print('fucker')
+            return {'detail': f'Stream for source (id={source_id} )has already ended prior to this request!'}
         db_video = self.get_video_by_id(db, source_id)
         if db_video is None:
             raise HTTPException(status_code=404, detail=f'Source with id {source_id} not found!')
         self.__worker_stream_reader.remove_source(source_id)
 
+        self.__sources_to_terminate.append(source_id)
         db_video.status = SourceStatus.TERMINATED
         db.commit()
 
@@ -263,7 +269,7 @@ class MediaService:
         try:
             self.__frames_queue.put(data, block=True)
         except queue.Full:
-            print(f'WorkerMLInference queue is full! Element not added.')
+            print(f'frames_queue is full! Element not added.')
             return
 
     @staticmethod
