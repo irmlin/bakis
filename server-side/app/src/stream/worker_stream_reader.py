@@ -70,7 +70,7 @@ class WorkerStreamReader:
 
 
     def __update_fps_info(self, source_id):
-        if self.__caps[source_id]['num_read'] == self.__caps[source_id]['fps']:
+        if self.__caps[source_id]['num_read'] >= self.__caps[source_id]['fps']:
             self.__caps[source_id]['num_read'] = 0
             self.__caps[source_id]['start_time'] = time.time()
 

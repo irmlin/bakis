@@ -43,7 +43,7 @@ class MediaService:
         self.__internal_state: Dict[int, Dict[str, Any]] = {}
         self.__sources_to_terminate = []
         self.__frames_buffer_size = 30
-        self.__pipeline_fps = 32
+        self.__pipeline_fps = 30
         self.__active_source_id = None
         self.__alarm_score_thr = 0.8
         self.__alarm_timeout = 10 * 60
