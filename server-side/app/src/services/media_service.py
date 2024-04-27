@@ -36,12 +36,13 @@ class MediaService:
         self.__shared_sources_dict = self.__manager.dict()
         # Active websocket connections
         self.__connections: Dict[int, List[WebSocket]] = {}
-        self.__connections_lock = threading.Lock()
+        # self.__connections_lock = threading.Lock()
+        self.__connections_lock = asyncio.Lock()
         # Queue of frames which have been inferred on and are ready for streaming
         self.__frames_queue = Queue(maxsize=500)
         self.__internal_state: Dict[int, Dict[str, Any]] = {}
         self.__frames_buffer_size = 30
-        self.__pipeline_fps = 26
+        self.__pipeline_fps = 32
         self.__active_source_id = None
         self.__alarm_score_thr = 0.8
         self.__alarm_timeout = 10 * 60
@@ -92,12 +93,13 @@ class MediaService:
 
     async def start_inference_task(self, background_tasks: BackgroundTasks, db: Session, video_id: int):
         if not self.__job_started:
-            # self.__job = threading.Thread(target=asyncio.create_task, args=(self.__stream_to_client(db),),
-            #                               name='THREAD_read_processed_frames_from_queue')
-            # self.__job.start()
+            # job = threading.Thread(target=asyncio.create_task, args=(self.__stream_to_client(db),),
+            #                        name='THREAD_read_processed_frames_from_queue')
+            # job.start()
             # background_tasks.add_task(self.__stream_to_client, db)
             # await asyncio.to_thread(self.__stream_to_client, db)
-            # await asyncio.get_running_loop().run_in_executor(None, await self.__stream_to_client(db))
+            # asyncio.get_event_loop().run_in_executor(None, self.__stream_to_client, db)
+            # asyncio.get_event_loop().create_task(self.__stream_to_client(db))
             asyncio.create_task(self.__stream_to_client(db))
             self.__job_started = True
 
@@ -120,11 +122,11 @@ class MediaService:
 
     async def accept_connection(self, source_id: int, websocket: WebSocket):
         await websocket.accept()
-        with self.__connections_lock:
-            if source_id in self.__connections.keys():
-                self.__connections[source_id].append(websocket)
-            else:
-                self.__connections[source_id] = [websocket]
+        # async with self.__connections_lock:
+        if source_id in self.__connections.keys():
+            self.__connections[source_id].append(websocket)
+        else:
+            self.__connections[source_id] = [websocket]
         try:
             while True:
                 # The websocket will be destroyed if this method terminates.
@@ -133,10 +135,11 @@ class MediaService:
                 await websocket.receive_text()
         except WebSocketDisconnect as e:
             # Handle any unexpected socket disconnect
-            with self.__connections_lock:
-                if source_id in self.__connections.keys():
-                    print('socket disconnected from client ', source_id)
-                    self.__connections[source_id].remove(websocket)
+            print('socket disconnected from client ', source_id)
+            # async with self.__connections_lock:
+            #     if source_id in self.__connections.keys():
+            #         print('socket disconnected from client ', source_id)
+            #         self.__connections[source_id].remove(websocket)
 
     async def __stream_to_client(self, db: Session):
         while 1:
@@ -144,7 +147,8 @@ class MediaService:
                 # TODO: what would happen, if less than buffer amount of frames get here, before stream terminates.
                 # TODO: need to handle frame rate in other components as well
                 source_id, enc_frame, result, success, frame_num = self.__frames_queue.get(block=False)
-                self.__internal_state[source_id]['q'].put((source_id, enc_frame, result, success, frame_num), block=False)
+                self.__internal_state[source_id]['q'].put((source_id, enc_frame, result, success, frame_num),
+                                                          block=False)
                 self.__set_internal_q_buffer_ready(source_id)
             except queue.Empty:
                 source_ids = list(self.__internal_state.keys())
@@ -173,44 +177,41 @@ class MediaService:
             _, enc_frame, scores, success, frame_num = self.__internal_state[source_id]['q'].get(block=False)
         except queue.Empty:
             return
-        with self.__connections_lock:
-            if success and enc_frame is not None:
-                # Verify alarm status
-                self.__handle_accident(db=db, source_id=source_id, scores=scores, enc_frame=enc_frame)
-                if source_id in self.__connections.keys():
-                    ws_to_remove = []
-                    for ws in self.__connections[source_id]:
-                        # TODO: MUST add WebSocketDisconnect catching here
-                        try:
-                            await ws.send_bytes(enc_frame.tobytes())
-                            await ws.send_json({'scores': scores.tolist()})
-                            self.__internal_state[source_id]['last_sent_time'] = time.time()
-                        except WebSocketDisconnect as e:
-                            ws_to_remove.append(ws)
-                    for ws in ws_to_remove:
-                        print('socket disconnected from client during streaming', source_id)
-                        self.__connections[source_id].remove(ws)
-            else:
-                # Stream ended
-                db_video = self.get_video_by_id(db, source_id)
-                db_video.status = SourceStatus.PROCESSED
-                db.commit()
-                del self.__internal_state[source_id]
-                if source_id in self.__connections.keys():
-                    # Send stream end messages to all sockets, then close connection.
-                    for ws in self.__connections[source_id]:
-                        # TODO: MUST add WebSocketDisconnect catching here
-                        try:
-                            await ws.send_json({'source_id': source_id, 'detail': 'Video stream ended!'})
-                            await ws.close()
-                        except WebSocketDisconnect as e:
-                            # We will delete all source's connections regardless
-                            pass
-                    del self.__connections[source_id]
+        if success and enc_frame is not None:
+            self.__handle_accident(db=db, source_id=source_id, scores=scores, enc_frame=enc_frame)
+            ws_to_remove = []
+            # Make shallow copy. If new connection gets appended during the following loop, no unwanted behavior will occur.
+            current_ws_conns = self.__connections[source_id][:]
+            for ws in current_ws_conns:
+                try:
+                    await ws.send_bytes(enc_frame.tobytes())
+                    await ws.send_json({'scores': scores.tolist()})
+                    self.__internal_state[source_id]['last_sent_time'] = time.time()
+                except (WebSocketDisconnect, BaseException) as e:
+                    ws_to_remove.append(ws)
+            for ws in ws_to_remove:
+                print('socket disconnected from client during streaming', source_id)
+                self.__connections[source_id].remove(ws)
+        else:
+            # Stream ended
+            print('ENDED, ', source_id)
+            db_video = self.get_video_by_id(db, source_id)
+            db_video.status = SourceStatus.PROCESSED
+            db.commit()
+            del self.__internal_state[source_id]
+            for ws in self.__connections[source_id]:
+                # TODO: MUST add WebSocketDisconnect catching here
+                try:
+                    await ws.send_json({'source_id': source_id, 'detail': 'Video stream ended!'})
+                    await ws.close()
+                except (WebSocketDisconnect, BaseException) as e:
+                    # We will delete all source's connections regardless
+                    pass
+            del self.__connections[source_id]
 
     def __handle_accident(self, db: Session, source_id: int, scores: np.ndarray, enc_frame: np.ndarray):
         if self.__check_accident(source_id=source_id, scores=scores):
-            print('ACCIDENT')
+            print('ACCIDENT, ', source_id)
             self.__save_accident(db=db, source_id=source_id, enc_frame=enc_frame)
 
     def __save_accident(self, db: Session, source_id: int, enc_frame: np.ndarray):
@@ -226,7 +227,7 @@ class MediaService:
     def __check_accident(self, source_id: int, scores: np.ndarray) -> bool:
         ts = time.time()
         if ((self.__internal_state[source_id]['last_alarm_time'] is not None and
-                ts - self.__internal_state[source_id]['last_alarm_time'] < self.__alarm_timeout) or
+             ts - self.__internal_state[source_id]['last_alarm_time'] < self.__alarm_timeout) or
                 scores[0] < self.__alarm_score_thr):
             return False
 
@@ -248,20 +249,13 @@ class MediaService:
             self.__internal_state[source_id]['ready'] = True
 
     async def terminate_live_stream(self, db: Session, source_id: int):
-        print('connections before: ', self.__connections)
         db_video = self.get_video_by_id(db, source_id)
         if db_video is None:
             raise HTTPException(status_code=404, detail=f'Source with id {source_id} not found!')
         self.__worker_stream_reader.remove_source(source_id)
-        with self.__connections_lock:
-            if source_id in self.__connections.keys():
-                # Socket still open, means stream is being terminated. Otherwise, stream has ended previously.
-                print('removing all sockets for source ', source_id)
-                for ws in self.__connections[source_id]:
-                    await ws.close()
-                del self.__connections[source_id]
-                db_video.status = SourceStatus.TERMINATED
-                db.commit()
+
+        db_video.status = SourceStatus.TERMINATED
+        db.commit()
 
         return {'detail': f'Stream terminated for source (id={source_id})!'}
 

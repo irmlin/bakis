@@ -88,7 +88,7 @@ class WorkerMLInference:
 
                 print('ML SENT BATCH')
                 for s in self.__to_delete:
-                    print('ML DELETED SOURCE.')
+                    print('ML DELETED SOURCE.', {s})
                     self.__remove_finished_source(s)
                 self.__to_delete = []
                 self.__reset_batches()

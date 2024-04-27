@@ -126,7 +126,6 @@ function Accidents() {
           </Grid>
         </Grid>
       </MDBox>
-      <Footer />
     </DashboardLayout>
   );
 }
