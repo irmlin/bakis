@@ -36,17 +36,14 @@ class MediaService:
         self.__shared_sources_dict = self.__manager.dict()
         # Active websocket connections
         self.__connections: Dict[int, List[WebSocket]] = {}
-        # self.__connections_lock = threading.Lock()
-        self.__connections_lock = asyncio.Lock()
         # Queue of frames which have been inferred on and are ready for streaming
         self.__frames_queue = Queue(maxsize=500)
         self.__internal_state: Dict[int, Dict[str, Any]] = {}
         self.__sources_to_terminate = []
         self.__frames_buffer_size = 30
-        self.__pipeline_fps = 30
-        self.__active_source_id = None
         self.__alarm_score_thr = 0.8
         self.__alarm_timeout = 10 * 60
+        self.__video_cache_seconds = 10
         # Whether streaming job is active
         self.__job_started = False
 
@@ -74,7 +71,12 @@ class MediaService:
         with open(file_path, "wb+") as buffer:
             shutil.copyfileobj(video_file.file, buffer)
 
-        video = Video(title=video_create.title, description=video_create.description, file_path=file_path)
+        video_cap = cv2.VideoCapture(file_path)
+        fps = video_cap.get(cv2.CAP_PROP_FPS)
+        width = video_cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        height = video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        video = Video(title=video_create.title, description=video_create.description, file_path=file_path,
+                      fps=fps, width=width, height=height)
         db.add(video)
         db.commit()
         db.refresh(video)
@@ -107,8 +109,9 @@ class MediaService:
         self.__internal_state[video_id] = {'q': queue.Queue(maxsize=1000),
                                            'ready': False,
                                            'last_sent_time': time.time(),
-                                           'wait_time': 1 / self.__pipeline_fps,
-                                           'last_alarm_time': None}
+                                           'wait_time': 1 / db_video.fps,
+                                           'last_alarm_time': None,
+                                           'video_cache': []}
         self.__connections[video_id] = []
         db_video.status = SourceStatus.PROCESSING
         db.commit()
@@ -125,13 +128,8 @@ class MediaService:
                 # We can check for any incoming messages, while in the background
                 # data is continuously sent to clients.
                 await websocket.receive_text()
-        except WebSocketDisconnect as e:
-            # Handle any unexpected socket disconnect
+        except WebSocketDisconnect:
             print('socket disconnected from client, but not removing from list yet', source_id)
-            # async with self.__connections_lock:
-            #     if source_id in self.__connections.keys():
-            #         print('socket disconnected from client ', source_id)
-            #         self.__connections[source_id].remove(websocket)
 
     async def __stream_to_client(self, db: Session):
         while 1:
