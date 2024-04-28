@@ -21,7 +21,7 @@ from ..models import Video, Accident
 from ..models.enums import SourceStatus, AccidentType
 from ..schemas import VideoCreate
 from ..stream import WorkerStreamReader
-from ..utilities.file_size import FileSize
+from ..utilities import FileSize, generate_file_path
 
 
 class MediaService:
@@ -64,7 +64,7 @@ class MediaService:
                                        f' {round(FileSize.get_gb(self.file_size_limit_bytes), 3)} GB.')
         # TODO: add extension checks
         extname = os.path.splitext(video_file.filename)[1]
-        file_path = self.__generate_file_path(extname)
+        file_path = generate_file_path(extname)
         with open(file_path, "wb+") as buffer:
             shutil.copyfileobj(video_file.file, buffer)
 
@@ -223,12 +223,12 @@ class MediaService:
 
     def __save_accident(self, db: Session, source_id: int, enc_frame: np.ndarray, scores: np.ndarray):
         # Save image
-        image_path = self.__generate_file_path(ext='jpg')
+        image_path = generate_file_path(ext='.jpg')
         img = cv2.imdecode(np.frombuffer(enc_frame, dtype=np.uint8), cv2.IMREAD_COLOR)
         cv2.imwrite(image_path, img)
 
         # Save video
-        video_path = self.__generate_file_path(ext='mp4')
+        video_path = generate_file_path(ext='.mp4')
         fps, h, w = (self.__internal_state[source_id]['video_fps'], self.__internal_state[source_id]['video_h'],
                      self.__internal_state[source_id]['video_w'])
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -313,6 +313,3 @@ class MediaService:
     def __delete_video_file(self, file_path: str):
         if self.__video_file_exists(file_path):
             os.remove(file_path)
-
-    def __generate_file_path(self, ext: str):
-        return os.path.join('app', 'static', f'{uuid.uuid4()}.{ext}')
