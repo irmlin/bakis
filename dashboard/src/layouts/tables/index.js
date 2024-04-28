@@ -36,9 +36,10 @@ import DownloadableVideo from "./components/DownloadableVideo";
 function Accidents() {
 
   const columns = [
-      { Header: "detected", accessor: "detected", width: "45%", align: "left" },
+      { Header: "detected", accessor: "detected", width: "20%", align: "left" },
+      { Header: "camera/video", accessor: "camera", align: "left" },
       { Header: "type", accessor: "type", align: "left" },
-      { Header: "type", accessor: "video", align: "left" },
+      { Header: "video", accessor: "video", align: "left" },
       { Header: "image", accessor: "image", align: "center" },
     ];
 
@@ -57,6 +58,11 @@ function Accidents() {
           detected: (
             <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
               {accident["created_at"]}
+            </MDTypography>
+          ),
+          camera: (
+            <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
+              {accident["video"]["title"]}
             </MDTypography>
           ),
           type: (
@@ -101,6 +107,7 @@ function Accidents() {
     <DashboardLayout>
       <DashboardNavbar />
       <MDBox pt={6} pb={3}>
+        <div>fuckyou</div>
         <Grid container spacing={6}>
           <Grid item xs={12}>
             <Card>

@@ -20,8 +20,8 @@ class AccidentController:
 
     def __init_routes(self, router):
         @router.get("", response_model=List[AccidentRead])
-        def get_all_accidents(db: Session = Depends(get_db)):
-            return self.accident_service.get_all_accidents(db)
+        def get_all_accidents(db: Session = Depends(get_db), skip: int = 0, limit: int = 10):
+            return self.accident_service.get_all_accidents(db, skip, limit)
 
         @router.get("/image/{accident_id}")
         def get_accident_image(accident_id: int, db: Session = Depends(get_db)):
@@ -34,7 +34,7 @@ class AccidentController:
             return FileResponse(path=video_path, filename=video_name, media_type="video/mp4",
                                 headers={'Access-Control-Expose-Headers': 'Content-Disposition'})
 
-        @router.get("/report/pdf", response_model=List[AccidentRead])
+        @router.get("/report/pdf")
         def download_report_pdf(datetime_from: str = None, datetime_to: str = None,
                                 video_ids: List[int] = Query(None), db: Session = Depends(get_db)):
             pdf_path, pdf_name = self.accident_service.download_report_pdf(db=db, datetime_from=datetime_from,

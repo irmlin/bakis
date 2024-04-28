@@ -12,6 +12,7 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Image, Paragraph, Spacer
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
+from sqlalchemy import desc
 
 from ..models import Accident, Video
 from ..models.enums import accident_type_str_map
@@ -27,8 +28,8 @@ class AccidentService:
     def get_accident_by_id(self, db: Session, accident_id: int):
         return db.query(Accident).filter(Accident.id == accident_id).first()
 
-    def get_all_accidents(self, db: Session):
-        return db.query(Accident).all()
+    def get_all_accidents(self, db: Session, skip: int, limit: int):
+        return db.query(Accident).order_by(desc(Accident.id)).offset(skip).limit(limit).all()
 
     def get_sources_by_ids(self, db: Session, ids: List[int]):
         if ids is None:
