@@ -31,12 +31,14 @@ import {useEffect, useState} from "react";
 import {getAccidents} from "../../Services/AccidentService";
 import {CircularProgress} from "@mui/material";
 import ImageLoader from "./components/ImageLoader";
+import DownloadableVideo from "./components/DownloadableVideo";
 
 function Accidents() {
 
   const columns = [
       { Header: "detected", accessor: "detected", width: "45%", align: "left" },
       { Header: "type", accessor: "type", align: "left" },
+      { Header: "type", accessor: "video", align: "left" },
       { Header: "image", accessor: "image", align: "center" },
     ];
 
@@ -61,6 +63,9 @@ function Accidents() {
             <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
               {accidentTypeMap[accident["type"]] || accident["type"]}
             </MDTypography>
+          ),
+          video: (
+            <DownloadableVideo accidentId={accident.id}/>
           ),
           image: (
             <ImageLoader accidentId={accident.id}/>

@@ -58,9 +58,7 @@ class WorkerStreamReader:
             else:
                 finished_ids.append(source_id)
 
-            frame_num = cap_info['frame_num']
-            cap_info['frame_num'] += 1
-            self.__on_done((source_id, frame, success, frame_num))
+            self.__on_done((source_id, frame, success))
 
         return finished_ids
 
@@ -102,8 +100,7 @@ class WorkerStreamReader:
                         'cap': video_cap,
                         'fps': video_cap.get(cv2.CAP_PROP_FPS),
                         'start_time': time.time(),
-                        'num_read': 0,
-                        'frame_num': 0
+                        'num_read': 0
                     }
                     print(f'READER, added {source_id}, FPS: {self.__caps[source_id]["fps"]}')
 

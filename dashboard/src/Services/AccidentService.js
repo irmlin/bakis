@@ -19,3 +19,12 @@ export const getAccidentImage = async (accident_id) => {
     return err.response;
   }
 }
+
+export const downloadAccidentVideo = async (accident_id) => {
+  try {
+    return await axiosInstance.get(`/accident/video/${accident_id}`, {responseType: "blob"});
+  } catch (err) {
+    console.error("Failed to download video for accident ID: ", accident_id, err);
+    return err.response;
+  }
+}

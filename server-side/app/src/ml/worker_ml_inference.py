@@ -49,21 +49,17 @@ class WorkerMLInference:
         while 1:
             try:
                 # TODO: timeout
-                source_id, frame, success, frame_num = self.__queue.get(block=True, timeout=0.1)
+                source_id, frame, success = self.__queue.get(block=True, timeout=0.1)
                 if source_id not in self.__batch_data.keys():
                     # Initialize new source
-                    self.__batch_data[source_id] = {'frames': [], 'ready': False, 'frame_nums': []}
+                    self.__batch_data[source_id] = {'frames': [], 'ready': False}
 
                 if success:
                     self.__batch_data[source_id]['frames'].append(frame)
-                    self.__batch_data[source_id]['frame_nums'].append(frame_num)
                 else:
                     self.__last_frame_hit.append(source_id)
 
                 self.__set_batch_ready(source_id, success)
-
-                if not self.__all_batches_ready():
-                    continue
 
                 self.__process_batch()
 
@@ -86,12 +82,11 @@ class WorkerMLInference:
                 if len(frames) == 0 and s in self.__last_frame_hit and s not in self.__to_delete:
                     print(f'ML, SPECIAL. {s}')
                     # Special case, were full batch was sent and then immediately success=False received
-                    self.__on_done((s, None, None, False, -1))
+                    self.__on_done((s, None, None, None, False))
                     self.__to_delete.append(s)
                 if i >= len(frames):
                     # All frames have been sent
                     continue
-                fn = self.__batch_data[s]['frame_nums'][i]
                 frame_to_send = frames[i]
                 _, enc_frame = cv2.imencode(".jpg", frame_to_send, [int(cv2.IMWRITE_JPEG_QUALITY), 20])
                 # TODO: perhaps, if success==False, should simply sent 0 model scores.
@@ -100,7 +95,7 @@ class WorkerMLInference:
                                   (i + 1) == len(frames))
                 if is_final_frame:
                     self.__to_delete.append(s)
-                self.__on_done((s, enc_frame, scores[j], not is_final_frame, fn))
+                self.__on_done((s, frame_to_send, enc_frame, scores[j], not is_final_frame))
 
         print('ML SENT BATCH')
         self.print_batch_info()
@@ -126,8 +121,7 @@ class WorkerMLInference:
     def __reset_batches(self):
         self.__batch_data = {source_id: {'frames': data['frames'][self.__batch_size:],
                                          'ready': (len(data['frames'][self.__batch_size:]) >= self.__batch_size
-                                                   or source_id in self.__last_frame_hit),
-                                         'frame_nums': data['frame_nums'][self.__batch_size:]}
+                                                   or source_id in self.__last_frame_hit)}
                              for source_id, data in self.__batch_data.items()}
 
     def __infer(self) -> np.ndarray:

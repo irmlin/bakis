@@ -43,7 +43,8 @@ class MediaService:
         self.__frames_buffer_size = 30
         self.__alarm_score_thr = 0.8
         self.__alarm_timeout = 10 * 60
-        self.__video_cache_seconds = 10
+        self.__video_cache_seconds = 5
+        self.__accident_class_id = 0
         # Whether streaming job is active
         self.__job_started = False
 
@@ -62,12 +63,8 @@ class MediaService:
                                 detail=f'File size should not exceed'
                                        f' {round(FileSize.get_gb(self.file_size_limit_bytes), 3)} GB.')
         # TODO: add extension checks
-        filename = uuid.uuid4()
         extname = os.path.splitext(video_file.filename)[1]
-
-        video_file_name = f"{filename}{extname}"
-        # TODO: fix this
-        file_path = f'app/static/{video_file_name}'
+        file_path = self.__generate_file_path(extname)
         with open(file_path, "wb+") as buffer:
             shutil.copyfileobj(video_file.file, buffer)
 
@@ -77,6 +74,7 @@ class MediaService:
         height = video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
         video = Video(title=video_create.title, description=video_create.description, file_path=file_path,
                       fps=fps, width=width, height=height)
+        video_cap.release()
         db.add(video)
         db.commit()
         db.refresh(video)
@@ -111,6 +109,10 @@ class MediaService:
                                            'last_sent_time': time.time(),
                                            'wait_time': 1 / db_video.fps,
                                            'last_alarm_time': None,
+                                           'video_fps': db_video.fps,
+                                           'video_h': db_video.height,
+                                           'video_w': db_video.width,
+                                           'video_cache_num_frames': self.__video_cache_seconds * db_video.fps,
                                            'video_cache': []}
         self.__connections[video_id] = []
         db_video.status = SourceStatus.PROCESSING
@@ -134,11 +136,10 @@ class MediaService:
     async def __stream_to_client(self, db: Session):
         while 1:
             try:
-                # TODO: what would happen, if less than buffer amount of frames get here, before stream terminates.
-                # TODO: need to handle frame rate in other components as well
-                source_id, enc_frame, result, success, frame_num = self.__frames_queue.get(block=False)
-                self.__internal_state[source_id]['q'].put((source_id, enc_frame, result, success, frame_num),
-                                                          block=False)
+                # TODO: should fps be controlled in ML process?
+                # TODO: handle when cannot put due to full queue, but success=False arrives
+                source_id, frame, enc_frame, scores, success = self.__frames_queue.get(block=False)
+                self.__internal_state[source_id]['q'].put((source_id, frame, enc_frame, scores, success), block=False)
                 self.__set_internal_q_buffer_ready(source_id)
             except queue.Empty:
                 source_ids = list(self.__internal_state.keys())
@@ -149,7 +150,6 @@ class MediaService:
                 await asyncio.sleep(0.01)
             except queue.Full:
                 # TODO. Duplicate code
-                # TODO. Lost information about ended stream.
                 print(f'Internal frames queue was full. Dropping frames!')
                 source_ids = list(self.__internal_state.keys())
                 for source_id in source_ids:
@@ -164,15 +164,15 @@ class MediaService:
 
     async def __handle_stream(self, source_id: int, db: Session):
         try:
-            _, enc_frame, scores, success, frame_num = self.__internal_state[source_id]['q'].get(block=False)
+            _, frame, enc_frame, scores, success = self.__internal_state[source_id]['q'].get(block=False)
         except queue.Empty:
             return
         if success and enc_frame is not None:
             if source_id in self.__sources_to_terminate:
                 # Client removed source, shouldn't process the leftover incoming frames for source.
                 # Socket object will be destroyed, once success==False is received.
-                print(f'not processing {source_id}, waiting for success=false')
                 return
+            self.__handle_video_cache(source_id=source_id, frame=frame)
             self.__handle_accident(db=db, source_id=source_id, scores=scores, enc_frame=enc_frame)
             ws_to_remove = []
             # Make shallow copy. If new connection gets appended during the following loop, no unwanted behavior will occur.
@@ -209,18 +209,39 @@ class MediaService:
                     pass
             del self.__connections[source_id]
 
+    def __handle_video_cache(self, source_id: int, frame: np.ndarray):
+        current_cache_size = len(self.__internal_state[source_id]['video_cache'])
+        if current_cache_size >= self.__internal_state[source_id]['video_cache_num_frames']:
+            # TODO: probably not efficient, use dequeue
+            self.__internal_state[source_id]['video_cache'] = self.__internal_state[source_id]['video_cache'][1:]
+        self.__internal_state[source_id]['video_cache'].append(frame)
+
     def __handle_accident(self, db: Session, source_id: int, scores: np.ndarray, enc_frame: np.ndarray):
         if self.__check_accident(source_id=source_id, scores=scores):
             print('ACCIDENT, ', source_id)
-            self.__save_accident(db=db, source_id=source_id, enc_frame=enc_frame)
+            self.__save_accident(db=db, source_id=source_id, enc_frame=enc_frame, scores=scores)
 
-    def __save_accident(self, db: Session, source_id: int, enc_frame: np.ndarray):
-        image_name = f"{uuid.uuid4()}.jpg"
-        image_path = f'app/static/{image_name}'
+    def __save_accident(self, db: Session, source_id: int, enc_frame: np.ndarray, scores: np.ndarray):
+        # Save image
+        image_path = self.__generate_file_path(ext='jpg')
         img = cv2.imdecode(np.frombuffer(enc_frame, dtype=np.uint8), cv2.IMREAD_COLOR)
         cv2.imwrite(image_path, img)
 
-        accident = Accident(type=AccidentType.CAR_CRASH, image_path=image_path, video_id=source_id)
+        # Save video
+        video_path = self.__generate_file_path(ext='mp4')
+        fps, h, w = (self.__internal_state[source_id]['video_fps'], self.__internal_state[source_id]['video_h'],
+                     self.__internal_state[source_id]['video_w'])
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        print(video_path, fourcc, fps, w, h, len(self.__internal_state[source_id]['video_cache']))
+        out = cv2.VideoWriter(video_path, fourcc, int(fps), (int(w), int(h)))
+        for frame in self.__internal_state[source_id]['video_cache']:
+            out.write(frame)
+
+        out.release()
+        self.__internal_state[source_id]['video_cache'] = []
+
+        accident = Accident(type=AccidentType.CAR_CRASH, image_path=image_path,
+                            video_id=source_id, video_path=video_path, score=list(scores)[self.__accident_class_id])
         db.add(accident)
         db.commit()
 
@@ -292,3 +313,6 @@ class MediaService:
     def __delete_video_file(self, file_path: str):
         if self.__video_file_exists(file_path):
             os.remove(file_path)
+
+    def __generate_file_path(self, ext: str):
+        return os.path.join('app', 'static', f'{uuid.uuid4()}.{ext}')

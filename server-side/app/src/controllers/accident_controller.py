@@ -1,6 +1,7 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, Response
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from ..dependencies import get_db
@@ -25,3 +26,9 @@ class AccidentController:
         def get_accident_image(accident_id: int, db: Session = Depends(get_db)):
             data = self.accident_service.get_accident_image(accident_id, db)
             return Response(content=data, media_type="image/jpeg")
+
+        @router.get("/video/{accident_id}")
+        def download_accident_video(accident_id: int, db: Session = Depends(get_db)):
+            video_path, video_name = self.accident_service.get_accident_video(accident_id, db)
+            return FileResponse(path=video_path, filename=video_name, media_type="video/mp4",
+                                headers={'Access-Control-Expose-Headers': 'Content-Disposition'})
