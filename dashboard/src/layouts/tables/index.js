@@ -33,6 +33,14 @@ import {CircularProgress} from "@mui/material";
 import ImageLoader from "./components/ImageLoader";
 import DownloadableVideo from "./components/DownloadableVideo";
 
+import {DesktopDatePicker, LocalizationProvider, TimePicker} from '@mui/x-date-pickers';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
+import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
+import dayjs from "dayjs";
+import {DemoContainer, DemoItem} from "@mui/x-date-pickers/internals/demo";
+import {Label} from "@mui/icons-material";
+
+
 function Accidents() {
 
   const columns = [
@@ -47,6 +55,11 @@ function Accidents() {
 
   const [accidents, setAccidents] = useState([]);
   const [rows, setRows] = useState([]);
+  const [dateFrom, setDateFrom] = useState(new dayjs());
+
+  const onDateFromChange = (newDate) => {
+    setDateFrom(newDate);
+  };
 
     function createRows() {
       if (!accidents) {
@@ -107,7 +120,17 @@ function Accidents() {
     <DashboardLayout>
       <DashboardNavbar />
       <MDBox pt={6} pb={3}>
-        <div>fuckyou</div>
+        <MDBox mb={5}>
+          <LocalizationProvider dateAdapter={AdapterDayjs}>
+            <DateTimePicker
+              ampm={false}
+              timeSteps={{minutes: 1}}
+              value={dateFrom}
+              onChange={onDateFromChange}
+              timezone={"system"}
+            />
+          </LocalizationProvider>
+        </MDBox>
         <Grid container spacing={6}>
           <Grid item xs={12}>
             <Card>
