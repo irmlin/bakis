@@ -155,7 +155,6 @@ function Accidents() {
         const response = await getAllSources();
         if (response) {
             if (response.status === 200) {
-              console.log(response.data);
               setAllSources(response.data);
             } else {
                 console.error('Error on fetching all sources: ', response);
@@ -181,7 +180,9 @@ function Accidents() {
       );
       if (response) {
           if (response.status === 200) {
-            setAccidents(response.data);
+              const updatedResponse = response.data.map((accident) => ({...accident,
+                created_at: shiftUtcDateToLocal(accident.created_at)}))
+              setAccidents(updatedResponse);
           } else {
               console.error('Error on fetching filtered accidents: ', response);
           }
