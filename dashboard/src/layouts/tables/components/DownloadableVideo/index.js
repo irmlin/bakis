@@ -1,40 +1,39 @@
 import {useEffect, useRef, useState} from "react";
 import {getLiveStreams} from "../../../../Services/MediaService";
-import {downloadAccidentVideo, getAccidentImage} from "../../../../Services/AccidentService";
+import {downloadAccidentVideo, getAccidentImage, showAccidentVideo} from "../../../../Services/AccidentService";
 import {CircularProgress} from "@mui/material";
 import MDButton from "../../../../Components/MDButton";
 import video from './a.mp4'
 
 export default function DownloadableVideo({accidentId}) {
 
-  const [videoUrl, setVideoUrl] = useState("");
-
-  const videoRef = useRef();
-    useEffect(() => {
-      videoRef.current?.load();
-  }, [videoUrl]);
-
-  useEffect(() => {
-    const fetchVideo = async () => {
-      const response = await downloadAccidentVideo(accidentId);
-      if (response) {
-        if (response.status === 200) {
-          // console.log(response.data)
-          const url = URL.createObjectURL(response.data);
-          // const url = window.URL.createObjectURL(response.data);
-          // console.log(url)
-          // console.log(response.data)
-          setVideoUrl(url);
-        } else {
-            console.error('Error fetching accident video for display: ', response);
-        }
-      } else {
-          console.error('No response from the server while fetching accident video for display!');
-      }
-    };
-
-    fetchVideo().then(r => {});
-  }, []);
+  // const [videoUrl, setVideoUrl] = useState(null);
+  //
+  // const videoRef = useRef();
+  //   useEffect(() => {
+  //     videoRef.current?.load();
+  // }, [videoUrl]);
+  //
+  // useEffect(() => {
+  //   const fetchVideo = async () => {
+  //     const response = await downloadAccidentVideo(accidentId);
+  //     if (response) {
+  //       if (response.status === 200) {
+  //         console.log(response.data);
+  //         const videoBlob = new Blob([response.data]);
+  //         const videoUrl = URL.createObjectURL(videoBlob);
+  //         console.log(videoUrl);
+  //         setVideoUrl(videoUrl);
+  //       } else {
+  //           console.error('Error fetching accident video for display: ', response);
+  //       }
+  //     } else {
+  //         console.error('No response from the server while fetching accident video for display!');
+  //     }
+  //   };
+  //
+  //   fetchVideo().then(r => {});
+  // }, []);
 
   const onDownloadVideoButtonClick = async () => {
     const response = await downloadAccidentVideo(accidentId);
@@ -71,12 +70,12 @@ export default function DownloadableVideo({accidentId}) {
       >
         Download
       </MDButton>
-      {videoUrl && (
-        <video controls>
-          <source src={video} type="video/mp4" />
-          Your browser does not support the video tag.
-        </video>
-      )}
+      {/*{videoUrl && (*/}
+      {/*  <video controls>*/}
+      {/*    <source src={videoUrl} type="video/mp4" />*/}
+      {/*    Your browser does not support the video tag.*/}
+      {/*  </video>*/}
+      {/*)}*/}
     </>
   );
 }

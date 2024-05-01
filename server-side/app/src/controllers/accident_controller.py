@@ -1,7 +1,7 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, Response, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from ..dependencies import get_db
@@ -39,6 +39,11 @@ class AccidentController:
             return FileResponse(path=video_path, filename=video_name, media_type="video/mp4",
                                 headers={'Access-Control-Expose-Headers': 'Content-Disposition'})
 
+        # @router.get("/video/display/{accident_id}")
+        # def display_accident_video(accident_id: int, db: Session = Depends(get_db)):
+        #     video_path, video_name = self.accident_service.download_accident_video(accident_id, db)
+        #     return FileResponse(path=video_path)
+
         @router.get("/report/pdf")
         def download_report_pdf(datetime_from: str = None, datetime_to: str = None,
                                 source_ids: List[int] = Query(None), db: Session = Depends(get_db)):
@@ -48,8 +53,12 @@ class AccidentController:
             return FileResponse(path=pdf_path, filename=pdf_name, media_type="application/pdf",
                                 headers={'Access-Control-Expose-Headers': 'Content-Disposition'})
 
-        # @router.get("/video/show/{accident_id}")
-        # def show_accident_video(accident_id: int, db: Session = Depends(get_db)):
-        #     video_path, video_name = self.accident_service.show_accident_video(accident_id, db)
-        #     return FileResponse(path=video_path, filename=video_name, media_type="video/mp4",
-        #                         headers={'Access-Control-Expose-Headers': 'Content-Disposition'})
+        @router.get("/report/excel")
+        def download_report_excel(datetime_from: str = None, datetime_to: str = None,
+                                  source_ids: List[int] = Query(None), db: Session = Depends(get_db)):
+            excel_path, excel_name = self.accident_service.download_report_excel(db=db, datetime_from=datetime_from,
+                                                                                 datetime_to=datetime_to,
+                                                                                 source_ids=source_ids)
+            return FileResponse(path=excel_path, filename=excel_name,
+                                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                headers={'Access-Control-Expose-Headers': 'Content-Disposition'})

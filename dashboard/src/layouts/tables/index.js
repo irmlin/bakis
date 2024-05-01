@@ -27,7 +27,7 @@ import DashboardNavbar from "Examples/Navbars/DashboardNavbar";
 import DataTable from "Examples/Tables/DataTable";
 
 import {useEffect, useState} from "react";
-import {exportAccidentsPdf, getFilteredAccidents} from "../../Services/AccidentService";
+import {exportAccidentsExcel, exportAccidentsPdf, getFilteredAccidents} from "../../Services/AccidentService";
 import {FormControl, InputLabel, OutlinedInput, Select} from "@mui/material";
 import ImageLoader from "./components/ImageLoader";
 import DownloadableVideo from "./components/DownloadableVideo";
@@ -213,6 +213,33 @@ function Accidents() {
   };
 
 
+  const onExportExcelButtonClick = async () => {
+      const response = await exportAccidentsExcel(getQueryParams(false));
+      if (response) {
+          if (response.status === 200) {
+            const disposition = response.headers['content-disposition'];
+            let filename = disposition.split(/;(.+)/)[1].split(/=(.+)/)[1];
+            if (filename.toLowerCase().startsWith("utf-8''"))
+               filename = decodeURIComponent(filename.replace("utf-8''", ''));
+            else
+               filename = filename.replace(/['"]/g, '');
+            const url = window.URL.createObjectURL(response.data);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+          } else {
+              console.error('Error on downloading excel: ', response);
+          }
+      } else {
+          console.error('No response from the server while downloading excel!');
+      }
+  };
+
+
   function getQueryParams(pagination) {
     const queryParams = new URLSearchParams();
     if (pagination)
@@ -304,13 +331,13 @@ function Accidents() {
           >
             Export to PDF
           </MDButton>
-          {/*<MDButton*/}
-          {/*  onClick={onExportXlsxButtonClick}*/}
-          {/*  variant="contained"*/}
-          {/*  color="info"*/}
-          {/*>*/}
-          {/*  Export to XLSX*/}
-          {/*</MDButton>*/}
+          <MDButton
+            onClick={onExportExcelButtonClick}
+            variant="contained"
+            color="info"
+          >
+            Export to Excel
+          </MDButton>
         </MDBox>
         <Grid container spacing={6}>
           <Grid item xs={12}>

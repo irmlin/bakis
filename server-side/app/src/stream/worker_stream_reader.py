@@ -42,6 +42,7 @@ class WorkerStreamReader:
                 finished_ids = self.__read_caps()
                 self.__handle_finished_caps(finished_ids=finished_ids)
             except BaseException as e:
+                time.sleep(6)
                 e_type, e_object, e_traceback = sys.exc_info()
                 print(f'{current_process().name}\n'
                       f'Error:{e_type}:{e_object}\n{"".join(traceback.format_tb(e_traceback))}')

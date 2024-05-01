@@ -1,9 +1,10 @@
 import base64
 import os
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import Tuple, List, Type
 
 import cv2
+import pandas as pd
 from fastapi import HTTPException
 from pydantic_core._pydantic_core import ValidationError
 from reportlab.lib import colors
@@ -15,6 +16,8 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 import pytz
+from UliPlot.XLSX import auto_adjust_xlsx_column_width
+
 
 from ..models import Accident, Video
 from ..models.enums import accident_type_str_map
@@ -29,7 +32,6 @@ class AccidentService:
 
     def get_accident_by_id(self, db: Session, accident_id: int):
         return db.query(Accident).filter(Accident.id == accident_id).first()
-
 
     def get_filtered_accidents(self, db: Session, datetime_from: str = None, datetime_to: str = None,
                                source_ids: List[int] = None, skip: int = 0, limit: int = 10):
@@ -90,7 +92,8 @@ class AccidentService:
             datetime_params: DateRangeParams = DateRangeParams(datetime_from=datetime_from, datetime_to=datetime_to)
         except ValidationError:
             raise HTTPException(status_code=422, detail=f'Invalid datetime received! Expected: (YYYY:mm:DD HH:MM:SS).')
-        db_accidents_query = self.__get_filtered_accidents_query(db=db, datetime_params=datetime_params, source_ids=source_ids)
+        db_accidents_query = self.__get_filtered_accidents_query(db=db, datetime_params=datetime_params,
+                                                                 source_ids=source_ids)
         db_accidents = db_accidents_query.all()
         if db_accidents is None or len(db_accidents) == 0:
             raise HTTPException(status_code=404, detail=f'No accidents found with provided filter:'
@@ -99,6 +102,60 @@ class AccidentService:
         sources = self.get_sources_by_ids(db=db, ids=source_ids)
         return self.__build_pdf(accidents=db_accidents, datetime_from=datetime_from,
                                 datetime_to=datetime_to, sources=sources)
+
+    def download_report_excel(self, db: Session, datetime_from: str = None, datetime_to: str = None,
+                              source_ids: List[int] = None) -> Tuple[str, str]:
+        try:
+            datetime_params: DateRangeParams = DateRangeParams(datetime_from=datetime_from, datetime_to=datetime_to)
+        except ValidationError:
+            raise HTTPException(status_code=422, detail=f'Invalid datetime received! Expected: (YYYY:mm:DD HH:MM:SS).')
+        db_accidents_query = self.__get_filtered_accidents_query(db=db, datetime_params=datetime_params,
+                                                                 source_ids=source_ids)
+        db_accidents = db_accidents_query.all()
+        if db_accidents is None or len(db_accidents) == 0:
+            raise HTTPException(status_code=404, detail=f'No accidents found with provided filter:'
+                                                        f' from {datetime_from}; to {datetime_to}; source ids: {source_ids}.')
+
+        return self.__build_excel(accidents=db_accidents, datetime_params=datetime_params)
+
+    def __build_excel(self, accidents: List[Type[Accident]], datetime_params: DateRangeParams,
+                      columns=None) -> Tuple[str, str]:
+        if columns is None:
+            columns = ["Detected At", "Camera/Video", "Accident Type", "Model Score"]
+
+        excel_path = generate_file_path('.xlsx')
+        alignments = {'Detected At': 'left', 'Camera/Video': 'left', 'Accident Type': 'left', 'Model Score': 'right'}
+        d_from, d_to = datetime_params.datetime_from, datetime_params.datetime_to
+        d_shifted_from = self.__get_adjusted_timezone(d_from) if d_from is not None else None
+        d_shifted_to = self.__get_adjusted_timezone(d_to) if d_to is not None else None
+
+        data = []
+        for accident in accidents:
+            data.append([str(self.__get_adjusted_timezone(accident.created_at)), accident.video.title,
+                         accident_type_str_map[accident.type], str(accident.score)])
+
+        if d_shifted_from is None and d_shifted_to is not None:
+            excel_name = f'export_to_{d_shifted_to}.xlsx'
+        elif d_shifted_from is not None and d_shifted_to is None:
+            excel_name = f'export_from_{d_shifted_from}.xlsx'
+        elif d_shifted_from is None and d_shifted_to is None:
+            excel_name = f'export_all_time.xlsx'
+        else:
+            excel_name = f'export_from_{d_shifted_from}_to_{d_shifted_to}.xlsx'
+
+        df = pd.DataFrame(data, columns=columns)
+        with pd.ExcelWriter(excel_path, engine='xlsxwriter') as writer:
+            df.to_excel(writer, sheet_name='Accidents', index=False, na_rep='NaN')
+            workbook = writer.book
+            worksheet = writer.sheets['Accidents']
+
+            for column in df:
+                column_width = max(df[column].astype(str).map(len).max(), len(column)) + 5
+                col_idx = df.columns.get_loc(column)
+                format_obj = workbook.add_format({'align': alignments[column]})
+                worksheet.set_column(col_idx, col_idx, column_width, format_obj)
+
+        return excel_path, excel_name
 
     def __build_pdf(self, accidents: List[Type[Accident]], datetime_from: str, datetime_to: str,
                     sources: List[Type[Video]], max_img_width=200, columns=None) -> Tuple[str, str]:
@@ -116,14 +173,7 @@ class AccidentService:
             if w > max_img_width:
                 ratio = max_img_width / w
             pdf_img_h, pdf_img_w = h * ratio, w * ratio
-
-            # Datetime convertion from UTC0 to system's TZ
-            target_timezone = pytz.timezone('Europe/Vilnius')
-            target_datetime = accident.created_at.astimezone(target_timezone)
-            utc_offset = target_timezone.utcoffset(accident.created_at).total_seconds()
-            adjusted_datetime = accident.created_at + timedelta(seconds=utc_offset)
-
-            data.append([adjusted_datetime, accident.video.title,
+            data.append([self.__get_adjusted_timezone(accident.created_at), accident.video.title,
                          accident_type_str_map[accident.type], str(accident.score),
                          Image(accident.image_path, width=pdf_img_w, height=pdf_img_h)])
 
@@ -189,3 +239,9 @@ class AccidentService:
     def __delete_file(self, file_path: str):
         if self.__file_exists(file_path):
             os.remove(file_path)
+
+    def __get_adjusted_timezone(self, datetime_obj: datetime) -> datetime:
+        datetime_naive = datetime_obj.replace(tzinfo=None)
+        target_timezone = pytz.timezone('Europe/Vilnius')
+        utc_offset = target_timezone.utcoffset(datetime_naive).total_seconds()
+        return datetime_naive + timedelta(seconds=utc_offset)

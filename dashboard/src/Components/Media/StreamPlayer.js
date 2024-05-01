@@ -39,7 +39,7 @@ export const StreamPlayer = (props) => {
         } else {
           const parsed = JSON.parse(event.data);
           if ("scores" in parsed) {
-            if (counter === hitCountForChartUpdate) {
+            if (counter % hitCountForChartUpdate === 0) {
               setModelScores(parsed.scores);
               counter = 0;
             }

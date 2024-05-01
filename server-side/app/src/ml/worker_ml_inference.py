@@ -66,6 +66,7 @@ class WorkerMLInference:
             except queue.Empty:
                 self.__process_batch()
             except BaseException as e:
+                time.sleep(5)
                 e_type, e_object, e_traceback = sys.exc_info()
                 print(f'{current_process().name}\n'
                       f'Error:{e_type}:{e_object}\n{"".join(traceback.format_tb(e_traceback))}')
