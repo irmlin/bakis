@@ -1,5 +1,6 @@
 import base64
 import os
+from datetime import timedelta
 from typing import Tuple, List, Type
 
 import cv2
@@ -13,6 +14,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Image, Para
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
+import pytz
 
 from ..models import Accident, Video
 from ..models.enums import accident_type_str_map
@@ -83,17 +85,18 @@ class AccidentService:
                 f'{db_accident.created_at}_from_{db_accident.video.title}_type_{db_accident.type}{ext}')
 
     def download_report_pdf(self, db: Session, datetime_from: str = None, datetime_to: str = None,
-                            video_ids: List[int] = None) -> Tuple[str, str]:
+                            source_ids: List[int] = None) -> Tuple[str, str]:
         try:
             datetime_params: DateRangeParams = DateRangeParams(datetime_from=datetime_from, datetime_to=datetime_to)
         except ValidationError:
             raise HTTPException(status_code=422, detail=f'Invalid datetime received! Expected: (YYYY:mm:DD HH:MM:SS).')
-        db_accidents = self.__get_filtered_accidents(db=db, datetime_params=datetime_params, video_ids=video_ids)
+        db_accidents_query = self.__get_filtered_accidents_query(db=db, datetime_params=datetime_params, source_ids=source_ids)
+        db_accidents = db_accidents_query.all()
         if db_accidents is None or len(db_accidents) == 0:
             raise HTTPException(status_code=404, detail=f'No accidents found with provided filter:'
-                                                        f' from {datetime_from}; to {datetime_to}; source ids: {video_ids}.')
+                                                        f' from {datetime_from}; to {datetime_to}; source ids: {source_ids}.')
 
-        sources = self.get_sources_by_ids(db=db, ids=video_ids)
+        sources = self.get_sources_by_ids(db=db, ids=source_ids)
         return self.__build_pdf(accidents=db_accidents, datetime_from=datetime_from,
                                 datetime_to=datetime_to, sources=sources)
 
@@ -113,7 +116,14 @@ class AccidentService:
             if w > max_img_width:
                 ratio = max_img_width / w
             pdf_img_h, pdf_img_w = h * ratio, w * ratio
-            data.append([accident.created_at, accident.video.title,
+
+            # Datetime convertion from UTC0 to system's TZ
+            target_timezone = pytz.timezone('Europe/Vilnius')
+            target_datetime = accident.created_at.astimezone(target_timezone)
+            utc_offset = target_timezone.utcoffset(accident.created_at).total_seconds()
+            adjusted_datetime = accident.created_at + timedelta(seconds=utc_offset)
+
+            data.append([adjusted_datetime, accident.video.title,
                          accident_type_str_map[accident.type], str(accident.score),
                          Image(accident.image_path, width=pdf_img_w, height=pdf_img_h)])
 

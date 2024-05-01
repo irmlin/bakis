@@ -27,7 +27,7 @@ import DashboardNavbar from "Examples/Navbars/DashboardNavbar";
 import DataTable from "Examples/Tables/DataTable";
 
 import {useEffect, useState} from "react";
-import {getFilteredAccidents} from "../../Services/AccidentService";
+import {exportAccidentsPdf, getFilteredAccidents} from "../../Services/AccidentService";
 import {FormControl, InputLabel, OutlinedInput, Select} from "@mui/material";
 import ImageLoader from "./components/ImageLoader";
 import DownloadableVideo from "./components/DownloadableVideo";
@@ -172,12 +172,7 @@ function Accidents() {
   }, [accidents]);
 
   const onFilterButtonClick = async () => {
-      const response = await getFilteredAccidents(skip, limit,
-        dateFrom ? dateFrom.toISOString() : null,
-        dateTo ? dateTo.toISOString() : null,
-        (selectedSources && selectedSources.length) ?
-          selectedSources.map((source) => source.id) : null
-      );
+      const response = await getFilteredAccidents(getQueryParams(true));
       if (response) {
           if (response.status === 200) {
               const updatedResponse = response.data.map((accident) => ({...accident,
@@ -190,6 +185,57 @@ function Accidents() {
           console.error('No response from the server while fetching filtered accidents!');
       }
   };
+
+  const onExportPdfButtonClick = async () => {
+      const response = await exportAccidentsPdf(getQueryParams(false));
+      if (response) {
+          if (response.status === 200) {
+            const disposition = response.headers['content-disposition'];
+            let filename = disposition.split(/;(.+)/)[1].split(/=(.+)/)[1];
+            if (filename.toLowerCase().startsWith("utf-8''"))
+               filename = decodeURIComponent(filename.replace("utf-8''", ''));
+            else
+               filename = filename.replace(/['"]/g, '');
+            const url = window.URL.createObjectURL(response.data);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+          } else {
+              console.error('Error on downloading PDF: ', response);
+          }
+      } else {
+          console.error('No response from the server while downloading PDF!');
+      }
+  };
+
+
+  function getQueryParams(pagination) {
+    const queryParams = new URLSearchParams();
+    if (pagination)
+      if (skip)
+        queryParams.append("skip", skip);
+    if (pagination)
+      if (limit)
+        queryParams.append("limit", limit);
+    if (dateTo)
+      queryParams.append("datetime_to", dateTo.toISOString());
+    if (dateFrom)
+      queryParams.append("datetime_from", dateFrom.toISOString());
+    const sourceIdsArray = (selectedSources && selectedSources.length) ?
+      (selectedSources.map((source) => source.id)) : null;
+    if (sourceIdsArray) {
+      for (const id of sourceIdsArray) {
+        queryParams.append('source_ids', id);
+      }
+    }
+
+    return queryParams;
+  }
+
 
   const onSelectSourcesChange = (event) => {
     const selected = event.target.value;
@@ -249,8 +295,22 @@ function Accidents() {
             variant="contained"
             color="info"
           >
-            Filter
+            Apply Filter
           </MDButton>
+          <MDButton
+            onClick={onExportPdfButtonClick}
+            variant="contained"
+            color="info"
+          >
+            Export to PDF
+          </MDButton>
+          {/*<MDButton*/}
+          {/*  onClick={onExportXlsxButtonClick}*/}
+          {/*  variant="contained"*/}
+          {/*  color="info"*/}
+          {/*>*/}
+          {/*  Export to XLSX*/}
+          {/*</MDButton>*/}
         </MDBox>
         <Grid container spacing={6}>
           <Grid item xs={12}>

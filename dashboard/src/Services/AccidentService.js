@@ -1,23 +1,8 @@
 import axiosInstance from "Http/httpClient"
 
 
-export const getFilteredAccidents = async (skip, limit, datetime_from, datetime_to, source_ids_array) => {
+export const getFilteredAccidents = async (queryParams) => {
   try {
-    const queryParams = new URLSearchParams();
-    if (skip)
-      queryParams.append("skip", skip);
-    if (limit)
-      queryParams.append("limit", limit);
-    if (datetime_to)
-      queryParams.append("datetime_to", datetime_to);
-    if (datetime_from)
-      queryParams.append("datetime_from", datetime_from);
-    if (source_ids_array) {
-      for (const id of source_ids_array) {
-        queryParams.append('source_ids', id);
-      }
-    }
-
     return await axiosInstance.get(`/accident`, {
       params: queryParams
     });
@@ -45,6 +30,17 @@ export const downloadAccidentVideo = async (accident_id) => {
 );
   } catch (err) {
     console.error("Failed to download video for accident ID: ", accident_id, err);
+    return err.response;
+  }
+}
+
+export const exportAccidentsPdf = async (queryParams) => {
+  try {
+    return await axiosInstance.get(`/accident/report/pdf`,
+      {responseType: "blob", params: queryParams},
+);
+  } catch (err) {
+    console.error("Failed to export accidents PDF: ", err);
     return err.response;
   }
 }
