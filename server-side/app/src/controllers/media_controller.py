@@ -1,6 +1,7 @@
 import asyncio
 import multiprocessing
 import threading
+from typing import List
 
 from fastapi import APIRouter, UploadFile, File, Depends, Form, WebSocket, BackgroundTasks
 from sqlalchemy.orm import Session
@@ -37,7 +38,7 @@ class MediaController:
         def get_video(video_id: int, db: Session = Depends(get_db)):
             return self.media_service.get_video_by_id(db, video_id)
 
-        @router.get("/video")
+        @router.get("/video", response_model=List[VideoRead])
         def get_all_videos(db: Session = Depends(get_db)):
             return self.media_service.get_all_videos(db)
 

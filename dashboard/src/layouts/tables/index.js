@@ -29,7 +29,7 @@ import DataTable from "Examples/Tables/DataTable";
 
 import {useEffect, useState} from "react";
 import {getAccidents, getFilteredAccidents} from "../../Services/AccidentService";
-import {CircularProgress} from "@mui/material";
+import {CircularProgress, FormControl, InputLabel, OutlinedInput, Select} from "@mui/material";
 import ImageLoader from "./components/ImageLoader";
 import DownloadableVideo from "./components/DownloadableVideo";
 
@@ -40,6 +40,10 @@ import dayjs from "dayjs";
 import {DemoContainer, DemoItem} from "@mui/x-date-pickers/internals/demo";
 import {Label} from "@mui/icons-material";
 import MDButton from "../../Components/MDButton";
+import {getAllSources} from "../../Services/MediaService";
+import MenuItem from "@mui/material/MenuItem";
+import Checkbox from "@mui/material/Checkbox";
+import ListItemText from "@mui/material/ListItemText";
 
 
 function Accidents() {
@@ -58,9 +62,22 @@ function Accidents() {
   const [rows, setRows] = useState([]);
   const [dateFrom, setDateFrom] = useState(new dayjs());
   const [dateTo, setDateTo] = useState(new dayjs());
-  const [sourceIds, setSourceIds] = useState([]);
+  const [selectedSources, setSelectedSources] = useState([]);
+  const [allSources, setAllSources] = useState([]);
   const [skip, setSkip] = useState(0);
   const [limit, setLimit] = useState(10);
+
+
+  const ITEM_HEIGHT = 48;
+  const ITEM_PADDING_TOP = 8;
+  const MenuProps = {
+    PaperProps: {
+      style: {
+        maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
+        width: 250,
+      },
+    },
+  };
 
   const onDateFromChange = (newDate) => {
     setDateFrom(newDate);
@@ -70,81 +87,106 @@ function Accidents() {
     setDateTo(newDate);
   };
 
-    function createRows() {
-      if (!accidents) {
-        return [];
-      }
-
-      return accidents.map((accident, index) => (
-        {
-          detected: (
-            <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
-              {accident["created_at"]}
-            </MDTypography>
-          ),
-          camera: (
-            <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
-              {accident["video"]["title"]}
-            </MDTypography>
-          ),
-          type: (
-            <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
-              {accidentTypeMap[accident["type"]] || accident["type"]}
-            </MDTypography>
-          ),
-          video: (
-            <DownloadableVideo accidentId={accident.id}/>
-          ),
-          image: (
-            <ImageLoader accidentId={accident.id}/>
-          )
-        }
-      ));
+  function createRows() {
+    if (!accidents) {
+      return [];
     }
 
-    useEffect(() => {
-      const fetchAccidents = async () => {
-          const response = await getFilteredAccidents(skip, limit);
-          if (response) {
-              if (response.status === 200) {
-                setAccidents(response.data);
-              } else {
-                  console.error('Error on fetching all accidents: ', response);
-              }
-          } else {
-              console.error('No response from the server while fetching all accidents!');
-          }
-      };
-        fetchAccidents().then(r => {});
-    }, [])
+    return accidents.map((accident, index) => (
+      {
+        detected: (
+          <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
+            {accident["created_at"]}
+          </MDTypography>
+        ),
+        camera: (
+          <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
+            {accident["video"]["title"]}
+          </MDTypography>
+        ),
+        type: (
+          <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
+            {accidentTypeMap[accident["type"]] || accident["type"]}
+          </MDTypography>
+        ),
+        video: (
+          <DownloadableVideo accidentId={accident.id}/>
+        ),
+        image: (
+          <ImageLoader accidentId={accident.id}/>
+        )
+      }
+    ));
+  }
 
-
-    useEffect(() => {
-      setRows(createRows());
-    }, [accidents]);
-
-    const onFilterButtonClick = async () => {
-        const response = await getFilteredAccidents(skip, limit,
-          dateFrom ? dateFrom.toISOString() : null,
-          dateTo ? dateTo.toISOString() : null,
-          (sourceIds && sourceIds.length) ? sourceIds.join(",") : null
-        );
+  useEffect(() => {
+    const fetchAccidents = async () => {
+        const response = await getFilteredAccidents(skip, limit);
         if (response) {
             if (response.status === 200) {
               setAccidents(response.data);
             } else {
-                console.error('Error on fetching filtered accidents: ', response);
+                console.error('Error on fetching all accidents: ', response);
             }
         } else {
-            console.error('No response from the server while fetching filtered accidents!');
+            console.error('No response from the server while fetching all accidents!');
         }
-    }
+    };
+      fetchAccidents().then(r => {});
+  }, [])
+
+
+  useEffect(() => {
+    const fetchAllSources = async () => {
+        const response = await getAllSources();
+        if (response) {
+            if (response.status === 200) {
+              console.log(response.data);
+              setAllSources(response.data);
+            } else {
+                console.error('Error on fetching all sources: ', response);
+            }
+        } else {
+            console.error('No response from the server while fetching all sources!');
+        }
+    };
+      fetchAllSources().then(r => {});
+  }, [])
+
+
+  useEffect(() => {
+    setRows(createRows());
+  }, [accidents]);
+
+  const onFilterButtonClick = async () => {
+      const response = await getFilteredAccidents(skip, limit,
+        dateFrom ? dateFrom.toISOString() : null,
+        dateTo ? dateTo.toISOString() : null,
+        (selectedSources && selectedSources.length) ?
+          selectedSources.map((source) => source.id) : null
+      );
+      if (response) {
+          if (response.status === 200) {
+            setAccidents(response.data);
+          } else {
+              console.error('Error on fetching filtered accidents: ', response);
+          }
+      } else {
+          console.error('No response from the server while fetching filtered accidents!');
+      }
+  };
+
+  const onSelectSourcesChange = (event) => {
+    const selected = event.target.value;
+    console.log(selected)
+    setSelectedSources([...selected])
+  };
 
   return (
     <DashboardLayout>
       <DashboardNavbar />
       <MDBox pt={6} pb={3}>
-        <MDBox mb={5}>
+        <MDBox mb={5} sx={{ display: 'flex'}}>
           <LocalizationProvider dateAdapter={AdapterDayjs}>
             <DateTimePicker
               ampm={false}
@@ -161,6 +203,26 @@ function Accidents() {
               timezone={"system"}
             />
           </LocalizationProvider>
+          <FormControl sx={{ width: 300 }}>
+            <InputLabel id="sources-multiple-select">Filter by Video Source</InputLabel>
+            <Select
+              labelId="sources-multiple-select"
+              id="sources-multiple-select"
+              multiple
+              value={selectedSources}
+              onChange={onSelectSourcesChange}
+              input={<OutlinedInput label="Filter by Video Source" />}
+              renderValue={(selected) => selected.map((source) => source.title).join(', ')}
+              MenuProps={MenuProps}
+            >
+              {allSources.map((source) => (
+                <MenuItem key={source.id} value={source}>
+                  <Checkbox checked={selectedSources.map((source) => source.id).indexOf(source.id) > -1} />
+                  <ListItemText primary={source.title} />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
           <MDButton
             onClick={onFilterButtonClick}
             variant="contained"

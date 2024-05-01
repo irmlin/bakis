@@ -27,6 +27,15 @@ export const getLiveStreams = async () => {
   }
 }
 
+export const getAllSources = async () => {
+  try {
+    return await axiosInstance.get(`/media/video`);
+  } catch (err) {
+      console.error("Failed to fetch all sources: ", err);
+      return err.response;
+  }
+}
+
 export const removeLiveStream = async (source_id) => {
   try {
     return await axiosInstance.put(`/media/video/stream/${source_id}`);
