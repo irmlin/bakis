@@ -1,9 +1,17 @@
 import axiosInstance from "Http/httpClient"
 
 
-export const getAccidents = async () => {
+export const getFilteredAccidents = async (skip, limit, datetime_from, datetime_to, source_ids) => {
   try {
-    return await axiosInstance.get(`/accident`);
+    return await axiosInstance.get(`/accident`, {
+      params: {
+        skip,
+        limit,
+        datetime_from,
+        datetime_to,
+        source_ids
+      }
+    });
   } catch (err) {
       console.error("Failed to fetch all accidents!: ", err);
       return err.response;

@@ -19,11 +19,11 @@ export default function DownloadableVideo({accidentId}) {
       const response = await downloadAccidentVideo(accidentId);
       if (response) {
         if (response.status === 200) {
-          console.log(response.data)
+          // console.log(response.data)
           const url = URL.createObjectURL(response.data);
           // const url = window.URL.createObjectURL(response.data);
-          console.log(url)
-          console.log(response.data)
+          // console.log(url)
+          // console.log(response.data)
           setVideoUrl(url);
         } else {
             console.error('Error fetching accident video for display: ', response);

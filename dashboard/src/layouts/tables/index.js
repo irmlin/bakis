@@ -28,7 +28,7 @@ import Footer from "Examples/Footer";
 import DataTable from "Examples/Tables/DataTable";
 
 import {useEffect, useState} from "react";
-import {getAccidents} from "../../Services/AccidentService";
+import {getAccidents, getFilteredAccidents} from "../../Services/AccidentService";
 import {CircularProgress} from "@mui/material";
 import ImageLoader from "./components/ImageLoader";
 import DownloadableVideo from "./components/DownloadableVideo";
@@ -39,6 +39,7 @@ import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import dayjs from "dayjs";
 import {DemoContainer, DemoItem} from "@mui/x-date-pickers/internals/demo";
 import {Label} from "@mui/icons-material";
+import MDButton from "../../Components/MDButton";
 
 
 function Accidents() {
@@ -56,9 +57,17 @@ function Accidents() {
   const [accidents, setAccidents] = useState([]);
   const [rows, setRows] = useState([]);
   const [dateFrom, setDateFrom] = useState(new dayjs());
+  const [dateTo, setDateTo] = useState(new dayjs());
+  const [sourceIds, setSourceIds] = useState([]);
+  const [skip, setSkip] = useState(0);
+  const [limit, setLimit] = useState(10);
 
   const onDateFromChange = (newDate) => {
     setDateFrom(newDate);
+  };
+
+  const onDateToChange = (newDate) => {
+    setDateTo(newDate);
   };
 
     function createRows() {
@@ -95,10 +104,9 @@ function Accidents() {
 
     useEffect(() => {
       const fetchAccidents = async () => {
-          const response = await getAccidents();
+          const response = await getFilteredAccidents(skip, limit);
           if (response) {
               if (response.status === 200) {
-                console.log(accidents);
                 setAccidents(response.data);
               } else {
                   console.error('Error on fetching all accidents: ', response);
@@ -115,6 +123,22 @@ function Accidents() {
       setRows(createRows());
     }, [accidents]);
 
+    const onFilterButtonClick = async () => {
+        const response = await getFilteredAccidents(skip, limit,
+          dateFrom ? dateFrom.toISOString() : null,
+          dateTo ? dateTo.toISOString() : null,
+          (sourceIds && sourceIds.length) ? sourceIds.join(",") : null
+        );
+        if (response) {
+            if (response.status === 200) {
+              setAccidents(response.data);
+            } else {
+                console.error('Error on fetching filtered accidents: ', response);
+            }
+        } else {
+            console.error('No response from the server while fetching filtered accidents!');
+        }
+    }
 
   return (
     <DashboardLayout>
@@ -129,7 +153,21 @@ function Accidents() {
               onChange={onDateFromChange}
               timezone={"system"}
             />
+            <DateTimePicker
+              ampm={false}
+              timeSteps={{minutes: 1}}
+              value={dateTo}
+              onChange={onDateToChange}
+              timezone={"system"}
+            />
           </LocalizationProvider>
+          <MDButton
+            onClick={onFilterButtonClick}
+            variant="contained"
+            color="info"
+          >
+            Filter
+          </MDButton>
         </MDBox>
         <Grid container spacing={6}>
           <Grid item xs={12}>

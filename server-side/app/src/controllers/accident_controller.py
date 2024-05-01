@@ -20,8 +20,13 @@ class AccidentController:
 
     def __init_routes(self, router):
         @router.get("", response_model=List[AccidentRead])
-        def get_all_accidents(db: Session = Depends(get_db), skip: int = 0, limit: int = 10):
-            return self.accident_service.get_all_accidents(db, skip, limit)
+        def get_accidents(db: Session = Depends(get_db), skip: int = 0, limit: int = 10,
+                          datetime_from: str = None, datetime_to: str = None,
+                          source_ids: List[int] = Query(None)):
+            return self.accident_service.get_filtered_accidents(db=db, skip=skip, limit=limit,
+                                                                datetime_from=datetime_from,
+                                                                datetime_to=datetime_to,
+                                                                source_ids=source_ids)
 
         @router.get("/image/{accident_id}")
         def get_accident_image(accident_id: int, db: Session = Depends(get_db)):

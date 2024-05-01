@@ -28,8 +28,19 @@ class AccidentService:
     def get_accident_by_id(self, db: Session, accident_id: int):
         return db.query(Accident).filter(Accident.id == accident_id).first()
 
-    def get_all_accidents(self, db: Session, skip: int, limit: int):
-        return db.query(Accident).order_by(desc(Accident.id)).offset(skip).limit(limit).all()
+
+    def get_filtered_accidents(self, db: Session, datetime_from: str = None, datetime_to: str = None,
+                               source_ids: List[int] = None, skip: int = 0, limit: int = 10):
+        try:
+            datetime_params: DateRangeParams = DateRangeParams(datetime_from=datetime_from, datetime_to=datetime_to)
+        except ValidationError:
+            raise HTTPException(status_code=422, detail=f'Invalid datetime received! Expected: (YYYY:mm:DD HH:MM:SS).')
+        print(datetime_params)
+        db_accidents_query = self.__get_filtered_accidents_query(db=db, datetime_params=datetime_params,
+                                                                 source_ids=source_ids)
+        db_accidents = db_accidents_query.order_by(desc(Accident.id)).offset(skip).limit(limit).all()
+
+        return db_accidents
 
     def get_sources_by_ids(self, db: Session, ids: List[int]):
         if ids is None:
@@ -39,16 +50,19 @@ class AccidentService:
         query = query.filter(or_(*source_id_conditions))
         return query.all()
 
-    def get_filtered_accidents(self, db: Session, datetime_params: DateRangeParams, video_ids: List[int]):
+    def __get_filtered_accidents_query(self, db: Session, datetime_params: DateRangeParams, source_ids: List[int]):
         query = db.query(Accident)
         if datetime_params.datetime_from is not None:
+            print('here1', type(datetime_params.datetime_from))
             query = query.filter(Accident.created_at >= datetime_params.datetime_from)
-        if datetime_params.datetime_to:
+        if datetime_params.datetime_to is not None:
+            print('here2', datetime_params.datetime_to)
             query = query.filter(Accident.created_at <= datetime_params.datetime_to)
-        if video_ids:
-            video_id_conditions = [Accident.video_id == video_id for video_id in video_ids]
-            query = query.filter(or_(*video_id_conditions))
-        return query.all()
+        if source_ids:
+            print('here3')
+            source_id_conditions = [Accident.video_id == video_id for video_id in source_ids]
+            query = query.filter(or_(*source_id_conditions))
+        return query
 
     def get_accident_image(self, accident_id: int, db: Session):
         db_accident = self.get_accident_by_id(db, accident_id)
@@ -78,8 +92,7 @@ class AccidentService:
             datetime_params: DateRangeParams = DateRangeParams(datetime_from=datetime_from, datetime_to=datetime_to)
         except ValidationError:
             raise HTTPException(status_code=422, detail=f'Invalid datetime received! Expected: (YYYY:mm:DD HH:MM:SS).')
-        db_accidents = self.get_filtered_accidents(db=db, datetime_params=datetime_params, video_ids=video_ids)
-        print(db_accidents)
+        db_accidents = self.__get_filtered_accidents(db=db, datetime_params=datetime_params, video_ids=video_ids)
         if db_accidents is None or len(db_accidents) == 0:
             raise HTTPException(status_code=404, detail=f'No accidents found with provided filter:'
                                                         f' from {datetime_from}; to {datetime_to}; source ids: {video_ids}.')
