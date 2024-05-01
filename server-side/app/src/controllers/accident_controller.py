@@ -23,7 +23,7 @@ class AccidentController:
         def get_accidents(db: Session = Depends(get_db), skip: int = 0, limit: int = 10,
                           datetime_from: str = None, datetime_to: str = None,
                           source_ids: List[int] = Query(None)):
-            print(source_ids)
+            print(datetime_from)
             return self.accident_service.get_filtered_accidents(db=db, skip=skip, limit=limit,
                                                                 datetime_from=datetime_from,
                                                                 datetime_to=datetime_to,

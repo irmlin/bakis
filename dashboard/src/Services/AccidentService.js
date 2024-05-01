@@ -4,8 +4,10 @@ import axiosInstance from "Http/httpClient"
 export const getFilteredAccidents = async (skip, limit, datetime_from, datetime_to, source_ids_array) => {
   try {
     const queryParams = new URLSearchParams();
-    queryParams.append("skip", skip);
-    queryParams.append("limit", limit);
+    if (skip)
+      queryParams.append("skip", skip);
+    if (limit)
+      queryParams.append("limit", limit);
     if (datetime_to)
       queryParams.append("datetime_to", datetime_to);
     if (datetime_from)

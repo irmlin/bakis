@@ -24,26 +24,23 @@ import MDTypography from "Components/MDTypography";
 // Material Dashboard 2 React example components
 import DashboardLayout from "Examples/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "Examples/Navbars/DashboardNavbar";
-import Footer from "Examples/Footer";
 import DataTable from "Examples/Tables/DataTable";
 
 import {useEffect, useState} from "react";
-import {getAccidents, getFilteredAccidents} from "../../Services/AccidentService";
-import {CircularProgress, FormControl, InputLabel, OutlinedInput, Select} from "@mui/material";
+import {getFilteredAccidents} from "../../Services/AccidentService";
+import {FormControl, InputLabel, OutlinedInput, Select} from "@mui/material";
 import ImageLoader from "./components/ImageLoader";
 import DownloadableVideo from "./components/DownloadableVideo";
 
-import {DesktopDatePicker, LocalizationProvider, TimePicker} from '@mui/x-date-pickers';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
-import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
-import dayjs from "dayjs";
-import {DemoContainer, DemoItem} from "@mui/x-date-pickers/internals/demo";
-import {Label} from "@mui/icons-material";
+import {LocalizationProvider} from '@mui/x-date-pickers';
+import {AdapterDayjs} from '@mui/x-date-pickers/AdapterDayjs'
+import {DateTimePicker} from '@mui/x-date-pickers/DateTimePicker';
 import MDButton from "../../Components/MDButton";
 import {getAllSources} from "../../Services/MediaService";
 import MenuItem from "@mui/material/MenuItem";
 import Checkbox from "@mui/material/Checkbox";
 import ListItemText from "@mui/material/ListItemText";
+import TextField from "@mui/material/TextField";
 
 
 function Accidents() {
@@ -60,8 +57,8 @@ function Accidents() {
 
   const [accidents, setAccidents] = useState([]);
   const [rows, setRows] = useState([]);
-  const [dateFrom, setDateFrom] = useState(new dayjs());
-  const [dateTo, setDateTo] = useState(new dayjs());
+  const [dateFrom, setDateFrom] = useState(null);
+  const [dateTo, setDateTo] = useState(null);
   const [selectedSources, setSelectedSources] = useState([]);
   const [allSources, setAllSources] = useState([]);
   const [skip, setSkip] = useState(0);
@@ -119,12 +116,29 @@ function Accidents() {
     ));
   }
 
+  function shiftUtcDateToLocal(utcDateString) {
+    let offsetMinutes = new Date().getTimezoneOffset();
+    let offsetMilliseconds = offsetMinutes * 60 * 1000; // Convert offset to milliseconds
+    let localDate = new Date(new Date(utcDateString).getTime() - offsetMilliseconds);
+    return localDate.toLocaleString("en-ZA", {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    });
+  }
+
   useEffect(() => {
     const fetchAccidents = async () => {
         const response = await getFilteredAccidents(skip, limit);
         if (response) {
             if (response.status === 200) {
-              setAccidents(response.data);
+              const updatedResponse = response.data.map((accident) => ({...accident,
+                created_at: shiftUtcDateToLocal(accident.created_at)}))
+              setAccidents(updatedResponse);
             } else {
                 console.error('Error on fetching all accidents: ', response);
             }
@@ -192,15 +206,21 @@ function Accidents() {
               ampm={false}
               timeSteps={{minutes: 1}}
               value={dateFrom}
+              label={"Filter by Date - from"}
               onChange={onDateFromChange}
               timezone={"system"}
+              format="YYYY-MM-DD HH:mm"
+              renderInput={(props) => <TextField {...props} />}
             />
             <DateTimePicker
               ampm={false}
               timeSteps={{minutes: 1}}
               value={dateTo}
+              label={"Filter by Date - to"}
               onChange={onDateToChange}
               timezone={"system"}
+              format="YYYY-MM-DD HH:mm"
+              renderInput={(props) => <TextField {...props} />}
             />
           </LocalizationProvider>
           <FormControl sx={{ width: 300 }}>
