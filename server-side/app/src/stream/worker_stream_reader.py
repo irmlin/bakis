@@ -4,7 +4,7 @@ import sys
 import time
 import traceback
 from multiprocessing import Process, current_process
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any
 
 import cv2
 

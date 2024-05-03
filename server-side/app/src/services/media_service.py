@@ -271,7 +271,6 @@ class MediaService:
 
     async def terminate_live_stream(self, db: Session, source_id: int):
         if source_id not in self.__connections.keys():
-            print('fucker')
             return {'detail': f'Stream for source (id={source_id} )has already ended prior to this request!'}
         db_video = self.get_video_by_id(db, source_id)
         if db_video is None:
