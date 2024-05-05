@@ -219,7 +219,7 @@ class MediaService:
             del self.__connections[source_id]
 
     async def __rest(self):
-        print('resting')
+        # print('service resting', os.getpid())
         await asyncio.sleep(1)
 
     def __update_fps_info(self, source_id: int, qsize_min: int = 50):

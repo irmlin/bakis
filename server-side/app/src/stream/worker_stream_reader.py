@@ -1,5 +1,6 @@
 import asyncio
 import multiprocessing
+import os
 import sys
 import time
 import traceback
@@ -28,12 +29,9 @@ class WorkerStreamReader:
                 del self.__sources[source_id]
 
     def start(self):
-        Process(target=self._do_work, name='PROCESS_worker_stream_reader').start()
+        Process(target=self.__do_work, name='PROCESS_worker_stream_reader').start()
 
-    def _do_work(self) -> None:
-        asyncio.run(self.__do_work())
-
-    async def __do_work(self) -> None:
+    def __do_work(self) -> None:
         while 1:
             try:
                 removed_sources = self.__handle_source_changes()
@@ -49,7 +47,7 @@ class WorkerStreamReader:
 
     def __rest(self):
         if len(self.__caps) == 0:
-            print('reader resting')
+            # print('reader resting', os.getpid())
             time.sleep(1)
 
     def __read_caps(self) -> List[int]:
