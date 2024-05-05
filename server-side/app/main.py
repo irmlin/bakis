@@ -11,12 +11,11 @@ from src.database import engine, SessionLocal
 from src.models import Base, Threshold
 from src.settings import HOST, PORT
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # This will create database tables
     Base.metadata.create_all(bind=engine)
-    init_db()
+    # init_db()
     yield
 
 
@@ -25,10 +24,11 @@ def init_db():
     # Initialize sensitivity threshold
     threshold = db.query(Threshold).first()
     if threshold is None:
-        default_threshold = Threshold()
-        db.add(default_threshold)
+        threshold = Threshold()
+        db.add(threshold)
         db.commit()
     db.close()
+    # ThresholdSingleton().set(threshold.car_crash_threshold)
 
 
 app = FastAPI(lifespan=lifespan)

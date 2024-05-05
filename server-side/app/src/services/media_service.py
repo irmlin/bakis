@@ -8,21 +8,21 @@ import threading
 import time
 import traceback
 from multiprocessing import Queue
-from multiprocessing.pool import Pool
 from typing import List, Dict, Any
 
 import cv2
 import numpy as np
-from fastapi import UploadFile, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks
+from fastapi import UploadFile, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
 
-from ..ml import WorkerMLInference
 from ..email import EmailManager
-from ..models import Video, Accident, Recipient
+from ..ml import WorkerMLInference
+from ..models import Video, Accident, Recipient, Threshold
 from ..models.enums import SourceStatus, AccidentType, accident_type_str_map
 from ..schemas import VideoCreate
 from ..stream import WorkerStreamReader
 from ..utilities import FileSize, generate_file_path, get_adjusted_timezone
+from ..database import SessionLocal
 
 
 class MediaService:
@@ -42,10 +42,11 @@ class MediaService:
         self.__internal_state: Dict[int, Dict[str, Any]] = {}
         self.__sources_to_terminate = []
         self.__frames_buffer_size = 30
-        self.__alarm_score_thr = 0.8
         self.__alarm_timeout = 10 * 60
         self.__video_cache_seconds = 5
         self.__accident_class_id = 0
+        self.__alarm_score_thr = 0.8
+        self.__thr_update_counter = 0
         # Whether streaming job is active
         self.__job_started = False
 
@@ -182,7 +183,8 @@ class MediaService:
                 # Socket object will be destroyed, once success==False is received.
                 return
             self.__handle_video_cache(source_id=source_id, frame=frame)
-            await self.__handle_accident(db=db, source_id=source_id, scores=scores, enc_frame=enc_frame)
+            await self.__handle_accident(db=db, source_id=source_id, scores=scores,
+                                         enc_frame=enc_frame)
             ws_to_remove = []
             # Make shallow copy. If new connection gets appended during the following loop, no unwanted behavior will occur.
             current_ws_conns = self.__connections[source_id][:]
@@ -200,9 +202,11 @@ class MediaService:
             # Stream ended
             print('ENDED, ', source_id)
             if source_id not in self.__sources_to_terminate:
-                db_video = self.get_video_by_id(db, source_id)
+                db_temp = SessionLocal()
+                db_video = self.get_video_by_id(db_temp, source_id)
                 db_video.status = SourceStatus.PROCESSED
-                db.commit()
+                db_temp.commit()
+                db_temp.close()
             del self.__internal_state[source_id]
             if source_id in self.__sources_to_terminate:
                 self.__sources_to_terminate.remove(source_id)
@@ -231,18 +235,18 @@ class MediaService:
             # Time taken to send video_fps number of frames
             time_taken = cur_time - self.__internal_state[source_id]['last_fps_measure_time']
             actual_fps = self.__internal_state[source_id]['video_fps'] / time_taken
-            print(
-                f'Actual FPS: {actual_fps}, time_taken: {time_taken}, set_fps: {self.__internal_state[source_id]["set_fps"]}')
+            # print(
+            #     f'Actual FPS: {actual_fps}, time_taken: {time_taken}, set_fps: {self.__internal_state[source_id]["set_fps"]}')
             if actual_fps < self.__internal_state[source_id]['video_fps']:
-                print(f'Made FPS Larger...........')
+                # print(f'Made FPS Larger...........')
                 self.__internal_state[source_id]['set_fps'] += 0.1
                 self.__internal_state[source_id]['wait_time'] = 1 / (self.__internal_state[source_id]['set_fps'])
             elif (actual_fps > self.__internal_state[source_id]['video_fps'] or
                   qsize < qsize_min):
-                print(f'Made FPS Smaller...........')
+                # print(f'Made FPS Smaller...........')
                 self.__internal_state[source_id]['set_fps'] -= 0.1
                 self.__internal_state[source_id]['wait_time'] = 1 / (self.__internal_state[source_id]['set_fps'])
-            print(f"Internal q: {self.__internal_state[source_id]['q'].qsize()}")
+            # print(f"Internal q: {self.__internal_state[source_id]['q'].qsize()}")
             self.__internal_state[source_id]['num_sent'] = 0
             self.__internal_state[source_id]['actual_fps'] = actual_fps
             self.__internal_state[source_id]['last_fps_measure_time'] = cur_time
@@ -255,6 +259,17 @@ class MediaService:
         self.__internal_state[source_id]['video_cache'].append(frame)
 
     async def __handle_accident(self, db: Session, source_id: int, scores: np.ndarray, enc_frame: np.ndarray):
+        if self.__thr_update_counter % 100 == 0:
+            print('updating')
+            # thr = db.query(Threshold).first()
+            # db.refresh(thr)
+            db_temp = SessionLocal()
+            val = db_temp.query(Threshold).first()
+            self.__alarm_score_thr = val.car_crash_threshold
+            print(self.__alarm_score_thr)
+            self.__thr_update_counter = 0
+            db_temp.close()
+        self.__thr_update_counter += 1
         if self.__check_accident(source_id=source_id, scores=scores):
             print('ACCIDENT, ', source_id)
             await self.__save_accident(db=db, source_id=source_id, enc_frame=enc_frame, scores=scores)
@@ -270,7 +285,6 @@ class MediaService:
         fps, h, w = (self.__internal_state[source_id]['video_fps'], self.__internal_state[source_id]['video_h'],
                      self.__internal_state[source_id]['video_w'])
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-        print(video_path, fourcc, fps, w, h, len(self.__internal_state[source_id]['video_cache']))
         out = cv2.VideoWriter(video_path, fourcc, int(fps), (int(w), int(h)))
         for frame in self.__internal_state[source_id]['video_cache']:
             out.write(frame)

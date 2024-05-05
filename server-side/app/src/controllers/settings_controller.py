@@ -24,7 +24,6 @@ class SettingsController:
 
         @router.put("/threshold", response_model=CarCrashThresholdUpdate)
         def update_threshold(threshold: float = Form(), db: Session = Depends(get_db)):
-            print(threshold)
             return self.settings_service.update_threshold(db=db, new_thr=threshold)
 
         @router.get("/recipient", response_model=List[RecipientRead])

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..models import Threshold, Recipient
 from ..models.validation_models import ThresholdRangeValidator, EmailValidator
+# from ..utilities import ThresholdSingleton
 
 
 class SettingsService:
@@ -25,6 +26,7 @@ class SettingsService:
             raise HTTPException(status_code=404, detail=f'Server could not find threshold setting!')
         db_threshold.car_crash_threshold = new_thr
         db.commit()
+        # ThresholdSingleton().set(value=new_thr)
 
         return db_threshold
 
