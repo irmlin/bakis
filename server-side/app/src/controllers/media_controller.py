@@ -1,6 +1,3 @@
-import asyncio
-import multiprocessing
-import threading
 from typing import List
 
 from fastapi import APIRouter, UploadFile, File, Depends, Form, WebSocket, BackgroundTasks
@@ -9,9 +6,6 @@ from sqlalchemy.orm import Session
 from ..dependencies import get_db
 from ..schemas import VideoRead, VideoCreate
 from ..services import MediaService
-from ..socket import WebSocketManager
-from ..stream import WorkerStreamReader
-import cv2
 
 
 # TODO: BaseController?

@@ -1,6 +1,5 @@
 import base64
 import os
-from datetime import timedelta, datetime
 from typing import Tuple, List, Type
 
 import cv2
@@ -12,17 +11,14 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Image, Paragraph, Spacer
+from sqlalchemy import desc
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
-import pytz
-from UliPlot.XLSX import auto_adjust_xlsx_column_width
-
 
 from ..models import Accident, Video
 from ..models.enums import accident_type_str_map
 from ..models.validation_models import DateRangeParams
-from ..utilities import generate_file_path
+from ..utilities import generate_file_path, get_adjusted_timezone
 
 
 class AccidentService:
@@ -126,12 +122,12 @@ class AccidentService:
         excel_path = generate_file_path('.xlsx')
         alignments = {'Detected At': 'left', 'Camera/Video': 'left', 'Accident Type': 'left', 'Model Score': 'right'}
         d_from, d_to = datetime_params.datetime_from, datetime_params.datetime_to
-        d_shifted_from = self.__get_adjusted_timezone(d_from) if d_from is not None else None
-        d_shifted_to = self.__get_adjusted_timezone(d_to) if d_to is not None else None
+        d_shifted_from = get_adjusted_timezone(d_from) if d_from is not None else None
+        d_shifted_to = get_adjusted_timezone(d_to) if d_to is not None else None
 
         data = []
         for accident in accidents:
-            data.append([str(self.__get_adjusted_timezone(accident.created_at)), accident.video.title,
+            data.append([str(get_adjusted_timezone(accident.created_at)), accident.video.title,
                          accident_type_str_map[accident.type], str(accident.score)])
 
         if d_shifted_from is None and d_shifted_to is not None:
@@ -173,7 +169,7 @@ class AccidentService:
             if w > max_img_width:
                 ratio = max_img_width / w
             pdf_img_h, pdf_img_w = h * ratio, w * ratio
-            data.append([self.__get_adjusted_timezone(accident.created_at), accident.video.title,
+            data.append([get_adjusted_timezone(accident.created_at), accident.video.title,
                          accident_type_str_map[accident.type], str(accident.score),
                          Image(accident.image_path, width=pdf_img_w, height=pdf_img_h)])
 
@@ -239,9 +235,3 @@ class AccidentService:
     def __delete_file(self, file_path: str):
         if self.__file_exists(file_path):
             os.remove(file_path)
-
-    def __get_adjusted_timezone(self, datetime_obj: datetime) -> datetime:
-        datetime_naive = datetime_obj.replace(tzinfo=None)
-        target_timezone = pytz.timezone('Europe/Vilnius')
-        utc_offset = target_timezone.utcoffset(datetime_naive).total_seconds()
-        return datetime_naive + timedelta(seconds=utc_offset)

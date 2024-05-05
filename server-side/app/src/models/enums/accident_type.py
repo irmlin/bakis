@@ -8,7 +8,7 @@ class AccidentType(str, Enum):
 
 
 accident_type_str_map = {
-    AccidentType.CAR_CRASH: 'Car Crash',
+    AccidentType.CAR_CRASH: 'Car crash',
     AccidentType.FIRE: 'Fire',
     AccidentType.VIOLENCE: 'Violence'
 }

@@ -18,7 +18,6 @@ class WorkerStreamReader:
         self.__caps: Dict[int, Dict[str, Any]] = {}
         self.__on_done = on_done
 
-
     def add_source(self, source_id, source_str) -> None:
         with self.__sources_lock:
             self.__sources[source_id] = source_str

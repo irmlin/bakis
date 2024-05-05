@@ -7,21 +7,22 @@ import sys
 import threading
 import time
 import traceback
-import uuid
 from multiprocessing import Queue
+from multiprocessing.pool import Pool
 from typing import List, Dict, Any
 
 import cv2
 import numpy as np
-from fastapi import UploadFile, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import UploadFile, HTTPException, WebSocket, WebSocketDisconnect, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from ..ml import WorkerMLInference
-from ..models import Video, Accident
-from ..models.enums import SourceStatus, AccidentType
+from ..email import EmailManager
+from ..models import Video, Accident, Recipient, Setting
+from ..models.enums import SourceStatus, AccidentType, accident_type_str_map
 from ..schemas import VideoCreate
 from ..stream import WorkerStreamReader
-from ..utilities import FileSize, generate_file_path
+from ..utilities import FileSize, generate_file_path, get_adjusted_timezone
 
 
 class MediaService:
@@ -47,6 +48,9 @@ class MediaService:
         self.__accident_class_id = 0
         # Whether streaming job is active
         self.__job_started = False
+
+        # Email
+        self.__email_manager = EmailManager()
 
         # Workers
         self.__worker_ml_inference = WorkerMLInference(on_done=self.__put_processed_frames_to_queue,
@@ -173,7 +177,7 @@ class MediaService:
                 # Socket object will be destroyed, once success==False is received.
                 return
             self.__handle_video_cache(source_id=source_id, frame=frame)
-            self.__handle_accident(db=db, source_id=source_id, scores=scores, enc_frame=enc_frame)
+            await self.__handle_accident(db=db, source_id=source_id, scores=scores, enc_frame=enc_frame)
             ws_to_remove = []
             # Make shallow copy. If new connection gets appended during the following loop, no unwanted behavior will occur.
             current_ws_conns = self.__connections[source_id][:]
@@ -216,12 +220,12 @@ class MediaService:
             self.__internal_state[source_id]['video_cache'] = self.__internal_state[source_id]['video_cache'][1:]
         self.__internal_state[source_id]['video_cache'].append(frame)
 
-    def __handle_accident(self, db: Session, source_id: int, scores: np.ndarray, enc_frame: np.ndarray):
+    async def __handle_accident(self, db: Session, source_id: int, scores: np.ndarray, enc_frame: np.ndarray):
         if self.__check_accident(source_id=source_id, scores=scores):
             print('ACCIDENT, ', source_id)
-            self.__save_accident(db=db, source_id=source_id, enc_frame=enc_frame, scores=scores)
+            await self.__save_accident(db=db, source_id=source_id, enc_frame=enc_frame, scores=scores)
 
-    def __save_accident(self, db: Session, source_id: int, enc_frame: np.ndarray, scores: np.ndarray):
+    async def __save_accident(self, db: Session, source_id: int, enc_frame: np.ndarray, scores: np.ndarray):
         # Save image
         image_path = generate_file_path(ext='.jpg')
         img = cv2.imdecode(np.frombuffer(enc_frame, dtype=np.uint8), cv2.IMREAD_COLOR)
@@ -244,6 +248,8 @@ class MediaService:
                             video_id=source_id, video_path=video_path, score=list(scores)[self.__accident_class_id])
         db.add(accident)
         db.commit()
+
+        asyncio.create_task(self.__inform_about_accident(db=db, accident=accident))
 
     def __check_accident(self, source_id: int, scores: np.ndarray) -> bool:
         ts = time.time()
@@ -296,6 +302,34 @@ class MediaService:
         file_size_bytes = file.file.tell()
         file.file.seek(0)
         return file_size_bytes
+
+    async def __inform_about_accident(self, db: Session, accident: Accident):
+        recipients = self.__get_recipients(db=db)
+        if recipients is None or len(recipients) == 0:
+            return
+
+        subject = self.__get_email_subject(accident=accident)
+        body = self.__get_email_body(accident=accident)
+        await self.__email_manager.send(recipients=recipients, subject=subject, body=body)
+
+    def __get_email_body(self, accident: Accident) -> str:
+        return f"""
+        <html>
+            <body>
+                <p>
+                    {accident_type_str_map[accident.type]} detected in video source {accident.video.title} at
+                    {get_adjusted_timezone(accident.created_at)}! You may check detailed accident information 
+                    <a href=http://localhost:3000/accidents>here</a>.
+                </p>
+            </body>
+        </html>
+        """
+
+    def __get_email_subject(self, accident: Accident) -> str:
+        return "Accident alert!"
+
+    def __get_recipients(self, db: Session):
+        return db.query(Recipient).all()
 
     def get_video_by_id(self, db: Session, video_id: int):
         return db.query(Video).filter(Video.id == video_id).first()
