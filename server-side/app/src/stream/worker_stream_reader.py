@@ -40,11 +40,17 @@ class WorkerStreamReader:
                 self.__inform_about_removed_sources(removed_sources=removed_sources)
                 finished_ids = self.__read_caps()
                 self.__handle_finished_caps(finished_ids=finished_ids)
+                self.__rest()
             except BaseException as e:
-                time.sleep(6)
+                time.sleep(5)
                 e_type, e_object, e_traceback = sys.exc_info()
                 print(f'{current_process().name}\n'
                       f'Error:{e_type}:{e_object}\n{"".join(traceback.format_tb(e_traceback))}')
+
+    def __rest(self):
+        if len(self.__caps) == 0:
+            print('reader resting')
+            time.sleep(1)
 
     def __read_caps(self) -> List[int]:
         finished_ids = []
@@ -64,7 +70,7 @@ class WorkerStreamReader:
 
     def __inform_about_removed_sources(self, removed_sources: List[int]) -> None:
         for source_id in removed_sources:
-            self.__on_done((source_id, None, False, -1))
+            self.__on_done((source_id, None, False))
 
 
     def __update_fps_info(self, source_id):

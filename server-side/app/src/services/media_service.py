@@ -38,7 +38,7 @@ class MediaService:
         # Active websocket connections
         self.__connections: Dict[int, List[WebSocket]] = {}
         # Queue of frames which have been inferred on and are ready for streaming
-        self.__frames_queue = Queue(maxsize=500)
+        self.__frames_queue = Queue(maxsize=100)
         self.__internal_state: Dict[int, Dict[str, Any]] = {}
         self.__sources_to_terminate = []
         self.__frames_buffer_size = 30
@@ -111,7 +111,11 @@ class MediaService:
         self.__internal_state[video_id] = {'q': queue.Queue(maxsize=1000),
                                            'ready': False,
                                            'last_sent_time': time.time(),
+                                           'last_fps_measure_time': time.time(),
                                            'wait_time': 1 / db_video.fps,
+                                           'set_fps': db_video.fps,
+                                           'num_sent': 0,
+                                           'actual_fps': db_video.fps,
                                            'last_alarm_time': None,
                                            'video_fps': db_video.fps,
                                            'video_h': db_video.height,
@@ -140,17 +144,18 @@ class MediaService:
     async def __stream_to_client(self, db: Session):
         while 1:
             try:
-                # TODO: should fps be controlled in ML process?
-                # TODO: handle when cannot put due to full queue, but success=False arrives
                 source_id, frame, enc_frame, scores, success = self.__frames_queue.get(block=False)
+                # print(f'Internal frames q size: {self.__internal_state[source_id]["q"].qsize()}')
                 self.__internal_state[source_id]['q'].put((source_id, frame, enc_frame, scores, success), block=False)
                 self.__set_internal_q_buffer_ready(source_id)
             except queue.Empty:
                 source_ids = list(self.__internal_state.keys())
+                if len(source_ids) == 0:
+                    await self.__rest()
                 for source_id in source_ids:
                     if self.__frame_ready_for_stream(source_id=source_id):
                         await self.__handle_stream(source_id=source_id, db=db)
-                # Allow other requests to process while no streams are running
+                # Allow other requests to process
                 await asyncio.sleep(0.01)
             except queue.Full:
                 # TODO. Duplicate code
@@ -159,7 +164,7 @@ class MediaService:
                 for source_id in source_ids:
                     if self.__frame_ready_for_stream(source_id=source_id):
                         await self.__handle_stream(source_id=source_id, db=db)
-                # Allow other requests to process while no streams are running
+                # Allow other requests to process
                 await asyncio.sleep(0.01)
             except BaseException as e:
                 e_type, e_object, e_traceback = sys.exc_info()
@@ -185,9 +190,9 @@ class MediaService:
                 try:
                     await ws.send_bytes(enc_frame.tobytes())
                     await ws.send_json({'scores': scores.tolist()})
-                    self.__internal_state[source_id]['last_sent_time'] = time.time()
                 except (WebSocketDisconnect, RuntimeError):
                     ws_to_remove.append(ws)
+            self.__update_fps_info(source_id=source_id)
             for ws in ws_to_remove:
                 print('socket disconnected from client during streaming, removed from list', source_id)
                 self.__connections[source_id].remove(ws)
@@ -212,6 +217,35 @@ class MediaService:
                     # Socket already disconnected from client
                     pass
             del self.__connections[source_id]
+
+    async def __rest(self):
+        print('resting')
+        await asyncio.sleep(1)
+
+    def __update_fps_info(self, source_id: int, qsize_min: int = 50):
+        self.__internal_state[source_id]['last_sent_time'] = time.time()
+        self.__internal_state[source_id]['num_sent'] += 1
+        qsize = self.__internal_state[source_id]['q'].qsize()
+        if self.__internal_state[source_id]['num_sent'] >= self.__internal_state[source_id]['video_fps']:
+            cur_time = time.time()
+            # Time taken to send video_fps number of frames
+            time_taken = cur_time - self.__internal_state[source_id]['last_fps_measure_time']
+            actual_fps = self.__internal_state[source_id]['video_fps'] / time_taken
+            print(
+                f'Actual FPS: {actual_fps}, time_taken: {time_taken}, set_fps: {self.__internal_state[source_id]["set_fps"]}')
+            if actual_fps < self.__internal_state[source_id]['video_fps']:
+                print(f'Made FPS Larger...........')
+                self.__internal_state[source_id]['set_fps'] += 0.1
+                self.__internal_state[source_id]['wait_time'] = 1 / (self.__internal_state[source_id]['set_fps'])
+            elif (actual_fps > self.__internal_state[source_id]['video_fps'] or
+                  qsize < qsize_min):
+                print(f'Made FPS Smaller...........')
+                self.__internal_state[source_id]['set_fps'] -= 0.1
+                self.__internal_state[source_id]['wait_time'] = 1 / (self.__internal_state[source_id]['set_fps'])
+            print(f"Internal q: {self.__internal_state[source_id]['q'].qsize()}")
+            self.__internal_state[source_id]['num_sent'] = 0
+            self.__internal_state[source_id]['actual_fps'] = actual_fps
+            self.__internal_state[source_id]['last_fps_measure_time'] = cur_time
 
     def __handle_video_cache(self, source_id: int, frame: np.ndarray):
         current_cache_size = len(self.__internal_state[source_id]['video_cache'])
@@ -291,6 +325,7 @@ class MediaService:
 
     def __put_processed_frames_to_queue(self, data):
         try:
+            # print(f'Current frames queue size {self.__frames_queue.qsize()}')
             self.__frames_queue.put(data, block=True)
         except queue.Full:
             print(f'frames_queue is full! Element not added.')
