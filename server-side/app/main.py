@@ -4,10 +4,11 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
 
 from src import root_router
-from src.database import engine
-from src.models import Base
+from src.database import engine, SessionLocal
+from src.models import Base, Threshold
 from src.settings import HOST, PORT
 
 
@@ -15,14 +16,26 @@ from src.settings import HOST, PORT
 async def lifespan(app: FastAPI):
     # This will create database tables
     Base.metadata.create_all(bind=engine)
+    init_db()
     yield
+
+
+def init_db():
+    db: Session = SessionLocal()
+    # Initialize sensitivity threshold
+    threshold = db.query(Threshold).first()
+    if threshold is None:
+        default_threshold = Threshold()
+        db.add(default_threshold)
+        db.commit()
+    db.close()
 
 
 app = FastAPI(lifespan=lifespan)
 
 
 # Allow requests from http://localhost:3000
-# Good for developement stage
+# Good for development stage
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],

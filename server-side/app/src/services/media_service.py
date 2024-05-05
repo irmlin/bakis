@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from ..ml import WorkerMLInference
 from ..email import EmailManager
-from ..models import Video, Accident, Recipient, Setting
+from ..models import Video, Accident, Recipient
 from ..models.enums import SourceStatus, AccidentType, accident_type_str_map
 from ..schemas import VideoCreate
 from ..stream import WorkerStreamReader

@@ -47,6 +47,7 @@ import SignUp from "layouts/authentication/sign-up";
 
 // @mui icons
 import Icon from "@mui/material/Icon";
+import Settings from "./layouts/settings";
 
 const routes = [
   {
@@ -61,9 +62,17 @@ const routes = [
     type: "collapse",
     name: "Detected Accidents",
     key: "tables",
-    icon: <Icon fontSize="small">table_view</Icon>,
+    icon: <Icon fontSize="small">accidents</Icon>,
     route: "/accidents",
     component: <Tables />,
+  },
+  {
+    type: "collapse",
+    name: "Settings",
+    key: "settings",
+    icon: <Icon fontSize="small" >settings</Icon>,
+    route: "/settings",
+    component: <Settings />,
   },
   // {
   //   type: "collapse",
@@ -89,14 +98,14 @@ const routes = [
   //   route: "/notifications",
   //   component: <Notifications />,
   // },
-  // {
-  //   type: "collapse",
-  //   name: "Profile",
-  //   key: "profile",
-  //   icon: <Icon fontSize="small">person</Icon>,
-  //   route: "/profile",
-  //   component: <Profile />,
-  // },
+  {
+    type: "collapse",
+    name: "Profile",
+    key: "profile",
+    icon: <Icon fontSize="small">person</Icon>,
+    route: "/profile",
+    component: <Profile />,
+  },
   // {
   //   type: "collapse",
   //   name: "Sign In",

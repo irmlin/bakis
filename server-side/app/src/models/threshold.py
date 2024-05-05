@@ -3,8 +3,8 @@ from sqlalchemy import Column, Integer, Float
 from ..database import Base
 
 
-class Setting(Base):
-    __tablename__ = 'settings'
+class Threshold(Base):
+    __tablename__ = 'thresholds'
 
     id = Column(Integer, primary_key=True)
-    created_at = Column(Float)
+    car_crash_threshold = Column(Float, default=0.8)
