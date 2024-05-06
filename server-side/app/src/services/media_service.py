@@ -14,12 +14,13 @@ import cv2
 import numpy as np
 from fastapi import UploadFile, HTTPException, WebSocket, WebSocketDisconnect
 from sqlalchemy.orm import Session
+from sqlalchemy import func, desc
 
 from ..email import EmailManager
 from ..ml import WorkerMLInference
 from ..models import Source, Accident, Recipient, Threshold
 from ..models.enums import SourceStatus, AccidentType, accident_type_str_map
-from ..schemas import SourceCreate
+from ..schemas import SourceCreate, SourceReadDetailed
 from ..stream import WorkerStreamReader
 from ..utilities import FileSize, generate_file_path, get_adjusted_timezone
 from ..database import SessionLocal
@@ -78,7 +79,7 @@ class MediaService:
         width = video_cap.get(cv2.CAP_PROP_FRAME_WIDTH)
         height = video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
         source = Source(title=source_create.title, description=source_create.description, file_path=file_path,
-                        fps=fps, width=width, height=height, type=source_create.type)
+                        fps=fps, width=width, height=height, source_type=source_create.source_type)
         video_cap.release()
         db.add(source)
         db.commit()
@@ -105,7 +106,7 @@ class MediaService:
         db_source = self.get_source_by_id(db, source_id)
         if db_source is None:
             raise HTTPException(status_code=404, detail=f'Source with id {source_id} not found')
-        if not self.__source_file_exists(db_source.file_path):
+        if not self.__video_file_exists(db_source.file_path):
             raise HTTPException(status_code=404, detail=f'Source (id={source_id}) file not found')
 
         self.__worker_stream_reader.add_source(source_id, db_source.file_path)
@@ -371,8 +372,30 @@ class MediaService:
     def get_source_by_id(self, db: Session, source_id: int):
         return db.query(Source).filter(Source.id == source_id).first()
 
-    def get_all_sources(self, db: Session):
-        return db.query(Source).all()
+    def get_all_sources(self, db: Session, skip: int = None, limit: int = None):
+        sources_query = db.query(Source).order_by(desc(Source.id))
+        if skip:
+            sources_query = sources_query.offset(skip)
+        if limit:
+            sources_query = sources_query.limit(limit)
+
+        sources = sources_query.all()
+        result: List[SourceReadDetailed] = []
+
+        for source in sources:
+            num_accidents = db.query(func.count(Accident.id)).filter(Accident.source_id == source.id).scalar()
+            s = SourceReadDetailed(
+                id=source.id,
+                title=source.title,
+                description=source.description,
+                created_at=source.created_at,
+                status=source.status,
+                num_accidents=num_accidents,
+                source_type=source.source_type
+            )
+            result.append(s)
+
+        return result
 
     def get_live_sources(self, db: Session):
         return db.query(Source).filter(Source.status == SourceStatus.PROCESSING).all()

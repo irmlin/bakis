@@ -21,6 +21,6 @@ class Source(Base):
     fps = Column(Float)
     height = Column(Float)
     width = Column(Float)
-    type = Column(EnumType(SourceType), default=SourceType.VIDEO)
+    source_type = Column(EnumType(SourceType), default=SourceType.VIDEO)
 
     accidents = relationship("Accident", back_populates="source")

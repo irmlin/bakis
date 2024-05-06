@@ -8,7 +8,7 @@ from ..models.enums import SourceStatus, SourceType
 class SourceBase(BaseModel):
     title: str
     description: str
-    type: SourceType
+    source_type: SourceType
 
 
 # TODO: this schema will have analyze_from, analyze_to fields
@@ -23,3 +23,7 @@ class SourceRead(SourceBase):
 
     class Config:
         orm_mode = True
+
+
+class SourceReadDetailed(SourceRead):
+    num_accidents: int

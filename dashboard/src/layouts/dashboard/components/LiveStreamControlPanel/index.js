@@ -77,6 +77,7 @@ export default function LiveStreamControlPanel(props) {
         formData.append('title', source.title);
         formData.append('description', source.description);
         formData.append('video_file', source.file);
+        formData.append('source_type', 'VIDEO');
 
         const responseUpload = await uploadSource(formData);
         if (responseUpload) {

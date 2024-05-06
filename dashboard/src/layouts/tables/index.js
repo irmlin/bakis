@@ -36,7 +36,7 @@ import {LocalizationProvider} from '@mui/x-date-pickers';
 import {AdapterDayjs} from '@mui/x-date-pickers/AdapterDayjs'
 import {DateTimePicker} from '@mui/x-date-pickers/DateTimePicker';
 import MDButton from "../../Components/MDButton";
-import {getAllSources} from "../../Services/MediaService";
+import {getFilteredSources} from "../../Services/MediaService";
 import MenuItem from "@mui/material/MenuItem";
 import Checkbox from "@mui/material/Checkbox";
 import ListItemText from "@mui/material/ListItemText";
@@ -98,7 +98,7 @@ function Accidents() {
         ),
         camera: (
           <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
-            {accident["video"]["title"]}
+            {accident["source"]["title"]}
           </MDTypography>
         ),
         type: (
@@ -134,6 +134,7 @@ function Accidents() {
   useEffect(() => {
     const fetchAccidents = async () => {
         const response = await getFilteredAccidents(skip, limit);
+        console.log(response)
         if (response) {
             if (response.status === 200) {
               const updatedResponse = response.data.map((accident) => ({...accident,
@@ -152,7 +153,7 @@ function Accidents() {
 
   useEffect(() => {
     const fetchAllSources = async () => {
-        const response = await getAllSources();
+        const response = await getFilteredSources(new URLSearchParams());
         if (response) {
             if (response.status === 200) {
               setAllSources(response.data);

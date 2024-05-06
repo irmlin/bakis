@@ -4,7 +4,7 @@ from fastapi import APIRouter, UploadFile, File, Depends, Form, WebSocket
 from sqlalchemy.orm import Session
 
 from ..dependencies import get_db
-from ..schemas import SourceRead, SourceCreate
+from ..schemas import SourceRead, SourceCreate, SourceReadDetailed
 from ..services import MediaService
 
 
@@ -20,8 +20,8 @@ class MediaController:
     def __init_routes(self, router):
         @router.post("/", response_model=SourceRead)
         def upload_source(title: str = Form(), description: str = Form(), video_file: UploadFile = File(...),
-                         db: Session = Depends(get_db)):
-            source_create = SourceCreate(title=title, description=description)
+                          source_type: str = Form(), db: Session = Depends(get_db)):
+            source_create = SourceCreate(title=title, description=description, source_type=source_type)
             return self.media_service.upload_source(db, source_create, video_file)
 
         @router.get("/source/stream")
@@ -32,9 +32,9 @@ class MediaController:
         def get_source(source_id: int, db: Session = Depends(get_db)):
             return self.media_service.get_source_by_id(db, source_id)
 
-        @router.get("/source", response_model=List[SourceRead])
-        def get_all_sources(db: Session = Depends(get_db)):
-            return self.media_service.get_all_sources(db)
+        @router.get("/source", response_model=List[SourceReadDetailed])
+        def get_all_sources(db: Session = Depends(get_db), skip: int = None, limit: int = None):
+            return self.media_service.get_all_sources(db, skip, limit)
 
         @router.delete("/source/{source_id}")
         def delete_source(source_id: int, db: Session = Depends(get_db)):

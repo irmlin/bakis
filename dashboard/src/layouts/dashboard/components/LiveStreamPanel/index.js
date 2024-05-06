@@ -43,7 +43,7 @@ export default function LiveStreamPanel(props) {
                 if (response.status === 200) {
                     const newStreams = response.data.filter(obj => obj && !isObjectInArray(liveStreams, obj.id));
                     for (const stream of newStreams) {
-                        stream["wsUrl"] = `ws://localhost:8000/api/media/video/stream/${stream.id}`;
+                        stream["wsUrl"] = `ws://localhost:8000/api/media/source/stream/${stream.id}`;
                     }
                     setLiveStreams([...liveStreams, ...newStreams]);
                 } else {

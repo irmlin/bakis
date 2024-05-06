@@ -11,7 +11,7 @@ export const uploadSource = async (data) => {
 
 export const startStream = async (video_id) => {
   try {
-    return await axiosInstance.get(`/media/video/inference/${video_id}`);
+    return await axiosInstance.get(`/media/source/inference/${video_id}`);
   } catch (err) {
       console.error("Failed to start stream for source ID: ", video_id, err);
       return err.response;
@@ -20,16 +20,16 @@ export const startStream = async (video_id) => {
 
 export const getLiveStreams = async () => {
   try {
-    return await axiosInstance.get(`/media/video/stream`);
+    return await axiosInstance.get(`/media/source/stream`);
   } catch (err) {
       console.error("Failed to fetch all live streams: ", err);
       return err.response;
   }
 }
 
-export const getAllSources = async () => {
+export const getFilteredSources = async (queryParams) => {
   try {
-    return await axiosInstance.get(`/media/video`);
+    return await axiosInstance.get(`/media/source`, {params: queryParams});
   } catch (err) {
       console.error("Failed to fetch all sources: ", err);
       return err.response;
@@ -38,7 +38,7 @@ export const getAllSources = async () => {
 
 export const removeLiveStream = async (source_id) => {
   try {
-    return await axiosInstance.put(`/media/video/stream/${source_id}`);
+    return await axiosInstance.put(`/media/source/stream/${source_id}`);
   } catch (err) {
       console.error("Failed to start stream for source ID: ", source_id, err);
       return err.response;
