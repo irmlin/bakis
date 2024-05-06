@@ -39,11 +39,6 @@ class AccidentController:
             return FileResponse(path=video_path, filename=video_name, media_type="video/mp4",
                                 headers={'Access-Control-Expose-Headers': 'Content-Disposition'})
 
-        # @router.get("/video/display/{accident_id}")
-        # def display_accident_video(accident_id: int, db: Session = Depends(get_db)):
-        #     video_path, video_name = self.accident_service.download_accident_video(accident_id, db)
-        #     return FileResponse(path=video_path)
-
         @router.get("/report/pdf")
         def download_report_pdf(datetime_from: str = None, datetime_to: str = None,
                                 source_ids: List[int] = Query(None), db: Session = Depends(get_db)):

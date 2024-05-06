@@ -1,10 +1,10 @@
 from typing import List
 
-from fastapi import APIRouter, UploadFile, File, Depends, Form, WebSocket, BackgroundTasks
+from fastapi import APIRouter, UploadFile, File, Depends, Form, WebSocket
 from sqlalchemy.orm import Session
 
 from ..dependencies import get_db
-from ..schemas import VideoRead, VideoCreate
+from ..schemas import SourceRead, SourceCreate
 from ..services import MediaService
 
 
@@ -18,39 +18,39 @@ class MediaController:
         self.__init_routes(router=self.router)
 
     def __init_routes(self, router):
-        @router.post("/", response_model=VideoRead)
-        def upload_video(title: str = Form(), description: str = Form(), video_file: UploadFile = File(...),
+        @router.post("/", response_model=SourceRead)
+        def upload_source(title: str = Form(), description: str = Form(), video_file: UploadFile = File(...),
                          db: Session = Depends(get_db)):
-            video_create = VideoCreate(title=title, description=description)
-            return self.media_service.upload_video(db, video_create, video_file)
+            source_create = SourceCreate(title=title, description=description)
+            return self.media_service.upload_source(db, source_create, video_file)
 
-        @router.get("/video/stream")
-        def get_live_videos(db: Session = Depends(get_db)):
-            return self.media_service.get_live_videos(db)
+        @router.get("/source/stream")
+        def get_live_sources(db: Session = Depends(get_db)):
+            return self.media_service.get_live_sources(db)
 
-        @router.get("/video/{video_id}")
-        def get_video(video_id: int, db: Session = Depends(get_db)):
-            return self.media_service.get_video_by_id(db, video_id)
+        @router.get("/source/{source_id}")
+        def get_source(source_id: int, db: Session = Depends(get_db)):
+            return self.media_service.get_source_by_id(db, source_id)
 
-        @router.get("/video", response_model=List[VideoRead])
-        def get_all_videos(db: Session = Depends(get_db)):
-            return self.media_service.get_all_videos(db)
+        @router.get("/source", response_model=List[SourceRead])
+        def get_all_sources(db: Session = Depends(get_db)):
+            return self.media_service.get_all_sources(db)
 
-        @router.delete("/video/{video_id}")
-        def delete_video(video_id: int, db: Session = Depends(get_db)):
-            return self.media_service.delete_video(db, video_id)
+        @router.delete("/source/{source_id}")
+        def delete_source(source_id: int, db: Session = Depends(get_db)):
+            return self.media_service.delete_source(db, source_id)
 
-        @router.put("/video/stream/{video_id}")
-        async def terminate_live_stream(video_id: int, db: Session = Depends(get_db)):
-            print('put endpoint hit', video_id)
-            return await self.media_service.terminate_live_stream(db, video_id)
+        @router.put("/source/stream/{source_id}")
+        async def terminate_live_stream(source_id: int, db: Session = Depends(get_db)):
+            print('put endpoint hit', source_id)
+            return await self.media_service.terminate_live_stream(db, source_id)
 
-        @router.get("/video/inference/{video_id}")
-        async def start_inference(video_id: int, db: Session = Depends(get_db)):
-            return await self.media_service.start_inference_task(db, video_id)
+        @router.get("/source/inference/{source_id}")
+        async def start_inference(source_id: int, db: Session = Depends(get_db)):
+            return await self.media_service.start_inference_task(db, source_id)
 
-        @router.websocket("/video/stream/{video_id}")
-        async def stream_video(video_id: int, websocket: WebSocket):
-            print(f'socket connecting, source is {video_id}')
-            await self.media_service.accept_connection(video_id, websocket)
+        @router.websocket("/source/stream/{source_id}")
+        async def stream_source(source_id: int, websocket: WebSocket):
+            print(f'socket connecting, source is {source_id}')
+            await self.media_service.accept_connection(source_id, websocket)
 

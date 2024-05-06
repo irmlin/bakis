@@ -2,20 +2,21 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from ..models.enums import SourceStatus
+from ..models.enums import SourceStatus, SourceType
 
 
-class VideoBase(BaseModel):
+class SourceBase(BaseModel):
     title: str
     description: str
+    type: SourceType
 
 
 # TODO: this schema will have analyze_from, analyze_to fields
-class VideoCreate(VideoBase):
+class SourceCreate(SourceBase):
     pass
 
 
-class VideoRead(VideoBase):
+class SourceRead(SourceBase):
     id: int
     created_at: datetime
     status: SourceStatus

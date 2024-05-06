@@ -17,9 +17,9 @@ from sqlalchemy.orm import Session
 
 from ..email import EmailManager
 from ..ml import WorkerMLInference
-from ..models import Video, Accident, Recipient, Threshold
+from ..models import Source, Accident, Recipient, Threshold
 from ..models.enums import SourceStatus, AccidentType, accident_type_str_map
-from ..schemas import VideoCreate
+from ..schemas import SourceCreate
 from ..stream import WorkerStreamReader
 from ..utilities import FileSize, generate_file_path, get_adjusted_timezone
 from ..database import SessionLocal
@@ -61,7 +61,7 @@ class MediaService:
         self.__worker_stream_reader.start()
         self.__worker_ml_inference.start()
 
-    def upload_video(self, db: Session, video_create: VideoCreate, video_file: UploadFile):
+    def upload_source(self, db: Session, source_create: SourceCreate, video_file: UploadFile):
         video_size_bytes = self.get_file_size(file=video_file)
         if video_size_bytes > self.file_size_limit_bytes:
             raise HTTPException(status_code=400,
@@ -77,56 +77,56 @@ class MediaService:
         fps = video_cap.get(cv2.CAP_PROP_FPS)
         width = video_cap.get(cv2.CAP_PROP_FRAME_WIDTH)
         height = video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-        video = Video(title=video_create.title, description=video_create.description, file_path=file_path,
-                      fps=fps, width=width, height=height)
+        source = Source(title=source_create.title, description=source_create.description, file_path=file_path,
+                        fps=fps, width=width, height=height, type=source_create.type)
         video_cap.release()
-        db.add(video)
+        db.add(source)
         db.commit()
-        db.refresh(video)
-        return video
+        db.refresh(source)
+        return source
 
-    def delete_video(self, db: Session, video_id: int):
-        db_video = self.get_video_by_id(db, video_id)
-        if db_video is None:
-            raise HTTPException(status_code=404, detail=f'Video with id {video_id} not found.')
-        if db_video.status == SourceStatus.PROCESSING:
-            raise HTTPException(status_code=409, detail=f'Video with id {video_id} is currently being streamed,'
+    def delete_source(self, db: Session, source_id: int):
+        db_source = self.get_source_by_id(db, source_id)
+        if db_source is None:
+            raise HTTPException(status_code=404, detail=f'Source with id {source_id} not found.')
+        if db_source.status == SourceStatus.PROCESSING:
+            raise HTTPException(status_code=409, detail=f'Source with id {source_id} is currently being streamed,'
                                                         f' stop streaming first!')
-        self.__delete_video_file(db_video.file_path)
-        db.delete(db_video)
+        self.__delete_video_file(db_source.file_path)
+        db.delete(db_source)
         db.commit()
-        return {'detail': f'Video (id={video_id}) has been deleted.'}
+        return {'detail': f'Source (id={source_id}) has been deleted.'}
 
-    async def start_inference_task(self, db: Session, video_id: int):
+    async def start_inference_task(self, db: Session, source_id: int):
         if not self.__job_started:
             asyncio.create_task(self.__stream_to_client())
             self.__job_started = True
 
-        db_video = self.get_video_by_id(db, video_id)
-        if db_video is None:
-            raise HTTPException(status_code=404, detail=f'Video with id {video_id} not found')
-        if not self.__video_file_exists(db_video.file_path):
-            raise HTTPException(status_code=404, detail=f'Video (id={video_id}) file not found')
+        db_source = self.get_source_by_id(db, source_id)
+        if db_source is None:
+            raise HTTPException(status_code=404, detail=f'Source with id {source_id} not found')
+        if not self.__source_file_exists(db_source.file_path):
+            raise HTTPException(status_code=404, detail=f'Source (id={source_id}) file not found')
 
-        self.__worker_stream_reader.add_source(video_id, db_video.file_path)
-        self.__internal_state[video_id] = {'q': queue.Queue(maxsize=1000),
-                                           'ready': False,
-                                           'last_sent_time': time.time(),
-                                           'last_fps_measure_time': time.time(),
-                                           'wait_time': 1 / db_video.fps,
-                                           'set_fps': db_video.fps,
-                                           'num_sent': 0,
-                                           'actual_fps': db_video.fps,
-                                           'last_alarm_time': None,
-                                           'video_fps': db_video.fps,
-                                           'video_h': db_video.height,
-                                           'video_w': db_video.width,
-                                           'video_cache_num_frames': self.__video_cache_seconds * db_video.fps,
-                                           'video_cache': []}
-        self.__connections[video_id] = []
-        db_video.status = SourceStatus.PROCESSING
+        self.__worker_stream_reader.add_source(source_id, db_source.file_path)
+        self.__internal_state[source_id] = {'q': queue.Queue(maxsize=1000),
+                                            'ready': False,
+                                            'last_sent_time': time.time(),
+                                            'last_fps_measure_time': time.time(),
+                                            'wait_time': 1 / db_source.fps,
+                                            'set_fps': db_source.fps,
+                                            'num_sent': 0,
+                                            'actual_fps': db_source.fps,
+                                            'last_alarm_time': None,
+                                            'source_fps': db_source.fps,
+                                            'source_h': db_source.height,
+                                            'source_w': db_source.width,
+                                            'video_cache_num_frames': self.__video_cache_seconds * db_source.fps,
+                                            'video_cache': []}
+        self.__connections[source_id] = []
+        db_source.status = SourceStatus.PROCESSING
         db.commit()
-        return {'detail': f'Video (id={video_id}) is being streamed.'}
+        return {'detail': f'Source (id={source_id}) is being streamed.'}
 
     async def accept_connection(self, source_id: int, websocket: WebSocket):
         if source_id not in self.__connections:
@@ -208,7 +208,7 @@ class MediaService:
                 self.__sources_to_terminate.remove(source_id)
             for ws in self.__connections[source_id]:
                 try:
-                    await ws.send_json({'source_id': source_id, 'detail': 'Video stream ended!'})
+                    await ws.send_json({'source_id': source_id, 'detail': 'Stream ended!'})
                     await ws.close()
                 except WebSocketDisconnect:
                     # We will delete all source's connections regardless
@@ -219,25 +219,24 @@ class MediaService:
             del self.__connections[source_id]
 
     async def __rest(self):
-        # print('service resting', os.getpid())
         await asyncio.sleep(1)
 
     def __update_fps_info(self, source_id: int, qsize_min: int = 50):
         self.__internal_state[source_id]['last_sent_time'] = time.time()
         self.__internal_state[source_id]['num_sent'] += 1
         qsize = self.__internal_state[source_id]['q'].qsize()
-        if self.__internal_state[source_id]['num_sent'] >= self.__internal_state[source_id]['video_fps']:
+        if self.__internal_state[source_id]['num_sent'] >= self.__internal_state[source_id]['source_fps']:
             cur_time = time.time()
-            # Time taken to send video_fps number of frames
+            # Time taken to send source_fps number of frames
             time_taken = cur_time - self.__internal_state[source_id]['last_fps_measure_time']
-            actual_fps = self.__internal_state[source_id]['video_fps'] / time_taken
+            actual_fps = self.__internal_state[source_id]['source_fps'] / time_taken
             # print(
             #     f'Actual FPS: {actual_fps}, time_taken: {time_taken}, set_fps: {self.__internal_state[source_id]["set_fps"]}')
-            if actual_fps < self.__internal_state[source_id]['video_fps']:
+            if actual_fps < self.__internal_state[source_id]['source_fps']:
                 # print(f'Made FPS Larger...........')
                 self.__internal_state[source_id]['set_fps'] += 0.1
                 self.__internal_state[source_id]['wait_time'] = 1 / (self.__internal_state[source_id]['set_fps'])
-            elif (actual_fps > self.__internal_state[source_id]['video_fps'] or
+            elif (actual_fps > self.__internal_state[source_id]['source_fps'] or
                   qsize < qsize_min):
                 # print(f'Made FPS Smaller...........')
                 self.__internal_state[source_id]['set_fps'] -= 0.1
@@ -268,8 +267,8 @@ class MediaService:
 
         # Save video
         video_path = generate_file_path(ext='.mp4')
-        fps, h, w = (self.__internal_state[source_id]['video_fps'], self.__internal_state[source_id]['video_h'],
-                     self.__internal_state[source_id]['video_w'])
+        fps, h, w = (self.__internal_state[source_id]['source_fps'], self.__internal_state[source_id]['source_h'],
+                     self.__internal_state[source_id]['source_w'])
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         out = cv2.VideoWriter(video_path, fourcc, int(fps), (int(w), int(h)))
         for frame in self.__internal_state[source_id]['video_cache']:
@@ -279,10 +278,10 @@ class MediaService:
         self.__internal_state[source_id]['video_cache'] = []
 
         accident = Accident(type=AccidentType.CAR_CRASH, image_path=image_path,
-                            video_id=source_id, video_path=video_path, score=list(scores)[self.__accident_class_id])
+                            source_id=source_id, video_path=video_path, score=list(scores)[self.__accident_class_id])
 
-        self.__temp_add_accident(accident=accident)
-        asyncio.create_task(self.__inform_about_accident(accident=accident))
+        accident_id = self.__temp_add_accident(accident=accident)
+        asyncio.create_task(self.__inform_about_accident(accident_id=accident_id))
 
     def __check_accident(self, source_id: int, scores: np.ndarray) -> bool:
         ts = time.time()
@@ -311,13 +310,13 @@ class MediaService:
     async def terminate_live_stream(self, db: Session, source_id: int):
         if source_id not in self.__connections.keys():
             return {'detail': f'Stream for source (id={source_id} )has already ended prior to this request!'}
-        db_video = self.get_video_by_id(db, source_id)
-        if db_video is None:
+        db_source = self.get_source_by_id(db, source_id)
+        if db_source is None:
             raise HTTPException(status_code=404, detail=f'Source with id {source_id} not found!')
         self.__worker_stream_reader.remove_source(source_id)
 
         self.__sources_to_terminate.append(source_id)
-        db_video.status = SourceStatus.TERMINATED
+        db_source.status = SourceStatus.TERMINATED
         db.commit()
 
         return {'detail': f'Stream terminated for source (id={source_id})!'}
@@ -337,13 +336,17 @@ class MediaService:
         file.file.seek(0)
         return file_size_bytes
 
-    async def __inform_about_accident(self, accident: Accident):
+    async def __inform_about_accident(self, accident_id: int):
         recipients = self.__temp_get_recipients()
         if recipients is None or len(recipients) == 0:
             return
 
+        db_temp = SessionLocal()
+        accident = db_temp.query(Accident).filter(Accident.id == accident_id).first()
         subject = self.__get_email_subject(accident=accident)
         body = self.__get_email_body(accident=accident)
+        db_temp.close()
+        # TODO: may crash here, ass recipients is not associated with session
         await self.__email_manager.send(recipients=recipients, subject=subject, body=body)
 
     def __get_email_body(self, accident: Accident) -> str:
@@ -351,7 +354,7 @@ class MediaService:
         <html>
             <body>
                 <p>
-                    {accident_type_str_map[accident.type]} detected in video source {accident.video.title} at
+                    {accident_type_str_map[accident.type]} detected in video source {accident.source.title} at
                     {get_adjusted_timezone(accident.created_at)}! You may check detailed accident information 
                     <a href=http://localhost:3000/accidents>here</a>.
                 </p>
@@ -365,14 +368,14 @@ class MediaService:
     def __get_recipients(self, db: Session):
         return db.query(Recipient).all()
 
-    def get_video_by_id(self, db: Session, video_id: int):
-        return db.query(Video).filter(Video.id == video_id).first()
+    def get_source_by_id(self, db: Session, source_id: int):
+        return db.query(Source).filter(Source.id == source_id).first()
 
-    def get_all_videos(self, db: Session):
-        return db.query(Video).all()
+    def get_all_sources(self, db: Session):
+        return db.query(Source).all()
 
-    def get_live_videos(self, db: Session):
-        return db.query(Video).filter(Video.status == SourceStatus.PROCESSING).all()
+    def get_live_sources(self, db: Session):
+        return db.query(Source).filter(Source.status == SourceStatus.PROCESSING).all()
 
     def __video_file_exists(self, file_path: str):
         return os.path.exists(file_path)
@@ -383,8 +386,8 @@ class MediaService:
 
     def __temp_set_source_status_processed(self, source_id: int):
         db_temp = SessionLocal()
-        db_video = self.get_video_by_id(db_temp, source_id)
-        db_video.status = SourceStatus.PROCESSED
+        db_source = self.get_source_by_id(db_temp, source_id)
+        db_source.status = SourceStatus.PROCESSED
         db_temp.commit()
         db_temp.close()
 
@@ -397,11 +400,13 @@ class MediaService:
             db_temp.close()
         self.__thr_update_counter += 1
 
-    def __temp_add_accident(self, accident: Accident):
+    def __temp_add_accident(self, accident: Accident) -> int:
         db_temp = SessionLocal()
         db_temp.add(accident)
         db_temp.commit()
+        accident_id = accident.id
         db_temp.close()
+        return accident_id
 
     def __temp_get_recipients(self):
         db_temp = SessionLocal()

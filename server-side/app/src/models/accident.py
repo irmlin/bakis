@@ -18,5 +18,5 @@ class Accident(Base):
     video_path = Column(String(250))
     score = Column(Float)
 
-    video_id = Column(Integer, ForeignKey('videos.id'))  # Foreign key reference to videos.id
-    video = relationship("Video", back_populates="accidents")
+    source_id = Column(Integer, ForeignKey('videos.id'))  # Foreign key reference to sources.id
+    source = relationship("Video", back_populates="accidents")

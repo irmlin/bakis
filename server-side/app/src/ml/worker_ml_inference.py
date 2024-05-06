@@ -1,19 +1,15 @@
-import asyncio
 import multiprocessing
-import os
+import multiprocessing
 import queue
 import sys
 import time
 import traceback
 from multiprocessing import Process, current_process
-from typing import List, Any, Dict
+from typing import Any, Dict
 
 import cv2
 import numpy as np
 import onnxruntime as ort
-
-from ..ml import PickableInferenceSession
-from ..utilities import execution_time
 
 
 class WorkerMLInference:

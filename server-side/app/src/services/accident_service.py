@@ -15,7 +15,7 @@ from sqlalchemy import desc
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from ..models import Accident, Video
+from ..models import Accident, Source
 from ..models.enums import accident_type_str_map
 from ..models.validation_models import DateRangeParams
 from ..utilities import generate_file_path, get_adjusted_timezone
@@ -44,8 +44,8 @@ class AccidentService:
     def get_sources_by_ids(self, db: Session, ids: List[int]):
         if ids is None:
             return None
-        query = db.query(Video)
-        source_id_conditions = [Video.id == source_id for source_id in ids]
+        query = db.query(Source)
+        source_id_conditions = [Source.id == source_id for source_id in ids]
         query = query.filter(or_(*source_id_conditions))
         return query.all()
 
@@ -56,7 +56,7 @@ class AccidentService:
         if datetime_params.datetime_to is not None:
             query = query.filter(Accident.created_at <= datetime_params.datetime_to)
         if source_ids:
-            source_id_conditions = [Accident.video_id == video_id for video_id in source_ids]
+            source_id_conditions = [Accident.source_id == source_id for source_id in source_ids]
             query = query.filter(or_(*source_id_conditions))
         return query
 
@@ -80,7 +80,7 @@ class AccidentService:
 
         ext = os.path.splitext(db_accident.video_path)[1]
         return (db_accident.video_path,
-                f'{db_accident.created_at}_from_{db_accident.video.title}_type_{db_accident.type}{ext}')
+                f'{db_accident.created_at}_from_{db_accident.source.title}_type_{db_accident.type}{ext}')
 
     def download_report_pdf(self, db: Session, datetime_from: str = None, datetime_to: str = None,
                             source_ids: List[int] = None) -> Tuple[str, str]:
@@ -127,7 +127,7 @@ class AccidentService:
 
         data = []
         for accident in accidents:
-            data.append([str(get_adjusted_timezone(accident.created_at)), accident.video.title,
+            data.append([str(get_adjusted_timezone(accident.created_at)), accident.source.title,
                          accident_type_str_map[accident.type], str(accident.score)])
 
         if d_shifted_from is None and d_shifted_to is not None:
@@ -154,7 +154,7 @@ class AccidentService:
         return excel_path, excel_name
 
     def __build_pdf(self, accidents: List[Type[Accident]], datetime_from: str, datetime_to: str,
-                    sources: List[Type[Video]], max_img_width=200, columns=None) -> Tuple[str, str]:
+                    sources: List[Type[Source]], max_img_width=200, columns=None) -> Tuple[str, str]:
         if columns is None:
             columns = ["Detected At", "Camera/Video", "Accident Type", "Model Score", "Image"]
         pdf_path = generate_file_path('.pdf')
@@ -169,7 +169,7 @@ class AccidentService:
             if w > max_img_width:
                 ratio = max_img_width / w
             pdf_img_h, pdf_img_w = h * ratio, w * ratio
-            data.append([get_adjusted_timezone(accident.created_at), accident.video.title,
+            data.append([get_adjusted_timezone(accident.created_at), accident.source.title,
                          accident_type_str_map[accident.type], str(accident.score),
                          Image(accident.image_path, width=pdf_img_w, height=pdf_img_h)])
 

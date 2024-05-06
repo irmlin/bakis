@@ -4,13 +4,13 @@ from sqlalchemy import Column, Integer, String, DateTime, Float
 from sqlalchemy import Enum as EnumType
 from sqlalchemy.orm import relationship
 
-from .enums import SourceStatus
+from .enums import SourceStatus, SourceType
 from ..database import Base
 
 
 #TODO: add analyze_from, analyze_to columns (time)
-class Video(Base):
-    __tablename__ = 'videos'
+class Source(Base):
+    __tablename__ = 'sources'
 
     id = Column(Integer, primary_key=True)
     title = Column(String(50))
@@ -21,5 +21,6 @@ class Video(Base):
     fps = Column(Float)
     height = Column(Float)
     width = Column(Float)
+    type = Column(EnumType(SourceType), default=SourceType.VIDEO)
 
-    accidents = relationship("Accident", back_populates="video")
+    accidents = relationship("Accident", back_populates="source")
