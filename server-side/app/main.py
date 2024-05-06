@@ -15,7 +15,6 @@ from src.settings import HOST, PORT
 async def lifespan(app: FastAPI):
     # This will create database tables
     Base.metadata.create_all(bind=engine)
-    # init_db()
     yield
 
 
@@ -28,7 +27,6 @@ def init_db():
         db.add(threshold)
         db.commit()
     db.close()
-    # ThresholdSingleton().set(threshold.car_crash_threshold)
 
 
 app = FastAPI(lifespan=lifespan)

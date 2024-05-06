@@ -99,7 +99,7 @@ class MediaService:
 
     async def start_inference_task(self, db: Session, video_id: int):
         if not self.__job_started:
-            asyncio.create_task(self.__stream_to_client(db))
+            asyncio.create_task(self.__stream_to_client())
             self.__job_started = True
 
         db_video = self.get_video_by_id(db, video_id)
@@ -142,7 +142,7 @@ class MediaService:
         except WebSocketDisconnect:
             print('socket disconnected from client, but not removing from list yet', source_id)
 
-    async def __stream_to_client(self, db: Session):
+    async def __stream_to_client(self):
         while 1:
             try:
                 source_id, frame, enc_frame, scores, success = self.__frames_queue.get(block=False)
@@ -155,7 +155,7 @@ class MediaService:
                     await self.__rest()
                 for source_id in source_ids:
                     if self.__frame_ready_for_stream(source_id=source_id):
-                        await self.__handle_stream(source_id=source_id, db=db)
+                        await self.__handle_stream(source_id=source_id)
                 # Allow other requests to process
                 await asyncio.sleep(0.01)
             except queue.Full:
@@ -164,7 +164,7 @@ class MediaService:
                 source_ids = list(self.__internal_state.keys())
                 for source_id in source_ids:
                     if self.__frame_ready_for_stream(source_id=source_id):
-                        await self.__handle_stream(source_id=source_id, db=db)
+                        await self.__handle_stream(source_id=source_id)
                 # Allow other requests to process
                 await asyncio.sleep(0.01)
             except BaseException as e:
@@ -172,7 +172,7 @@ class MediaService:
                 print(f'{threading.current_thread().name}\n'
                       f'Error:{e_type}:{e_object}\n{"".join(traceback.format_tb(e_traceback))}')
 
-    async def __handle_stream(self, source_id: int, db: Session):
+    async def __handle_stream(self, source_id: int):
         try:
             _, frame, enc_frame, scores, success = self.__internal_state[source_id]['q'].get(block=False)
         except queue.Empty:
@@ -183,7 +183,7 @@ class MediaService:
                 # Socket object will be destroyed, once success==False is received.
                 return
             self.__handle_video_cache(source_id=source_id, frame=frame)
-            await self.__handle_accident(db=db, source_id=source_id, scores=scores,
+            await self.__handle_accident(source_id=source_id, scores=scores,
                                          enc_frame=enc_frame)
             ws_to_remove = []
             # Make shallow copy. If new connection gets appended during the following loop, no unwanted behavior will occur.
@@ -202,11 +202,7 @@ class MediaService:
             # Stream ended
             print('ENDED, ', source_id)
             if source_id not in self.__sources_to_terminate:
-                db_temp = SessionLocal()
-                db_video = self.get_video_by_id(db_temp, source_id)
-                db_video.status = SourceStatus.PROCESSED
-                db_temp.commit()
-                db_temp.close()
+                self.__temp_set_source_status_processed(source_id=source_id)
             del self.__internal_state[source_id]
             if source_id in self.__sources_to_terminate:
                 self.__sources_to_terminate.remove(source_id)
@@ -258,23 +254,13 @@ class MediaService:
             self.__internal_state[source_id]['video_cache'] = self.__internal_state[source_id]['video_cache'][1:]
         self.__internal_state[source_id]['video_cache'].append(frame)
 
-    async def __handle_accident(self, db: Session, source_id: int, scores: np.ndarray, enc_frame: np.ndarray):
-        if self.__thr_update_counter % 100 == 0:
-            print('updating')
-            # thr = db.query(Threshold).first()
-            # db.refresh(thr)
-            db_temp = SessionLocal()
-            val = db_temp.query(Threshold).first()
-            self.__alarm_score_thr = val.car_crash_threshold
-            print(self.__alarm_score_thr)
-            self.__thr_update_counter = 0
-            db_temp.close()
-        self.__thr_update_counter += 1
+    async def __handle_accident(self, source_id: int, scores: np.ndarray, enc_frame: np.ndarray):
+        self.__temp_update_alarm_threshold()
         if self.__check_accident(source_id=source_id, scores=scores):
             print('ACCIDENT, ', source_id)
-            await self.__save_accident(db=db, source_id=source_id, enc_frame=enc_frame, scores=scores)
+            await self.__save_accident(source_id=source_id, enc_frame=enc_frame, scores=scores)
 
-    async def __save_accident(self, db: Session, source_id: int, enc_frame: np.ndarray, scores: np.ndarray):
+    async def __save_accident(self, source_id: int, enc_frame: np.ndarray, scores: np.ndarray):
         # Save image
         image_path = generate_file_path(ext='.jpg')
         img = cv2.imdecode(np.frombuffer(enc_frame, dtype=np.uint8), cv2.IMREAD_COLOR)
@@ -294,10 +280,9 @@ class MediaService:
 
         accident = Accident(type=AccidentType.CAR_CRASH, image_path=image_path,
                             video_id=source_id, video_path=video_path, score=list(scores)[self.__accident_class_id])
-        db.add(accident)
-        db.commit()
 
-        asyncio.create_task(self.__inform_about_accident(db=db, accident=accident))
+        self.__temp_add_accident(accident=accident)
+        asyncio.create_task(self.__inform_about_accident(accident=accident))
 
     def __check_accident(self, source_id: int, scores: np.ndarray) -> bool:
         ts = time.time()
@@ -352,8 +337,8 @@ class MediaService:
         file.file.seek(0)
         return file_size_bytes
 
-    async def __inform_about_accident(self, db: Session, accident: Accident):
-        recipients = self.__get_recipients(db=db)
+    async def __inform_about_accident(self, accident: Accident):
+        recipients = self.__temp_get_recipients()
         if recipients is None or len(recipients) == 0:
             return
 
@@ -395,3 +380,31 @@ class MediaService:
     def __delete_video_file(self, file_path: str):
         if self.__video_file_exists(file_path):
             os.remove(file_path)
+
+    def __temp_set_source_status_processed(self, source_id: int):
+        db_temp = SessionLocal()
+        db_video = self.get_video_by_id(db_temp, source_id)
+        db_video.status = SourceStatus.PROCESSED
+        db_temp.commit()
+        db_temp.close()
+
+    def __temp_update_alarm_threshold(self):
+        if self.__thr_update_counter % 100 == 0:
+            db_temp = SessionLocal()
+            thr_cur = db_temp.query(Threshold).first().car_crash_threshold
+            self.__alarm_score_thr = thr_cur
+            self.__thr_update_counter = 0
+            db_temp.close()
+        self.__thr_update_counter += 1
+
+    def __temp_add_accident(self, accident: Accident):
+        db_temp = SessionLocal()
+        db_temp.add(accident)
+        db_temp.commit()
+        db_temp.close()
+
+    def __temp_get_recipients(self):
+        db_temp = SessionLocal()
+        recipients = self.__get_recipients(db_temp)
+        db_temp.close()
+        return recipients
