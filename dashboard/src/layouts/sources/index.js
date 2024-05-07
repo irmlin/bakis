@@ -27,17 +27,7 @@ import DashboardNavbar from "Examples/Navbars/DashboardNavbar";
 import DataTable from "Examples/Tables/DataTable";
 
 import {useEffect, useState} from "react";
-import {FormControl, InputLabel, OutlinedInput, Select} from "@mui/material";
-
-import {LocalizationProvider} from '@mui/x-date-pickers';
-import {AdapterDayjs} from '@mui/x-date-pickers/AdapterDayjs'
-import {DateTimePicker} from '@mui/x-date-pickers/DateTimePicker';
-import MDButton from "../../Components/MDButton";
 import {getFilteredSources} from "../../Services/MediaService";
-import MenuItem from "@mui/material/MenuItem";
-import Checkbox from "@mui/material/Checkbox";
-import ListItemText from "@mui/material/ListItemText";
-import TextField from "@mui/material/TextField";
 
 
 function Sources() {
@@ -89,7 +79,7 @@ function Sources() {
         ),
         added: (
           <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
-            {source["added"]}
+            {source["created_at"]}
           </MDTypography>
         ),
         status: (
@@ -161,29 +151,6 @@ function Sources() {
     setRows(createRows());
   }, [sources]);
 
-
-  function getQueryParams(pagination) {
-    const queryParams = new URLSearchParams();
-    if (pagination)
-      if (skip)
-        queryParams.append("skip", skip);
-    if (pagination)
-      if (limit)
-        queryParams.append("limit", limit);
-    if (dateTo)
-      queryParams.append("datetime_to", dateTo.toISOString());
-    if (dateFrom)
-      queryParams.append("datetime_from", dateFrom.toISOString());
-    const sourceIdsArray = (selectedSources && selectedSources.length) ?
-      (selectedSources.map((source) => source.id)) : null;
-    if (sourceIdsArray) {
-      for (const id of sourceIdsArray) {
-        queryParams.append('source_ids', id);
-      }
-    }
-
-    return queryParams;
-  }
 
 
   return (
