@@ -27,8 +27,13 @@ import DashboardNavbar from "Examples/Navbars/DashboardNavbar";
 import DataTable from "Examples/Tables/DataTable";
 
 import {useEffect, useState} from "react";
-import {exportAccidentsExcel, exportAccidentsPdf, getFilteredAccidents} from "../../Services/AccidentService";
-import {FormControl, InputLabel, OutlinedInput, Select} from "@mui/material";
+import {
+  deleteAccident,
+  exportAccidentsExcel,
+  exportAccidentsPdf,
+  getFilteredAccidents
+} from "../../Services/AccidentService";
+import {Dialog, DialogActions, DialogTitle, FormControl, InputLabel, OutlinedInput, Select} from "@mui/material";
 import ImageLoader from "./components/ImageLoader";
 import DownloadableVideo from "./components/DownloadableVideo";
 
@@ -36,11 +41,14 @@ import {LocalizationProvider} from '@mui/x-date-pickers';
 import {AdapterDayjs} from '@mui/x-date-pickers/AdapterDayjs'
 import {DateTimePicker} from '@mui/x-date-pickers/DateTimePicker';
 import MDButton from "../../Components/MDButton";
-import {getFilteredSources} from "../../Services/MediaService";
+import {deleteSource, getFilteredSources} from "../../Services/MediaService";
 import MenuItem from "@mui/material/MenuItem";
 import Checkbox from "@mui/material/Checkbox";
 import ListItemText from "@mui/material/ListItemText";
 import TextField from "@mui/material/TextField";
+import IconButton from "@mui/material/IconButton";
+import ClearIcon from '@mui/icons-material/Clear';
+import {showNotification, useMaterialUIController} from "../../Context";
 
 
 function Accidents() {
@@ -51,6 +59,7 @@ function Accidents() {
       { Header: "type", accessor: "type", align: "left" },
       { Header: "video", accessor: "video", align: "left" },
       { Header: "image", accessor: "image", align: "center" },
+      { Header: "", accessor: "deleteAccident", align: "left", verticalAlign: "top"},
     ];
 
   const accidentTypeMap = {"CAR_CRASH": "Car Crash"}
@@ -63,7 +72,11 @@ function Accidents() {
   const [allSources, setAllSources] = useState([]);
   const [skip, setSkip] = useState(0);
   const [limit, setLimit] = useState(10);
+  const [activeAccidentId, setActiveAccidentId] = useState(null);
+  const [removeConfirmDialogOpen, setRemoveConfirmDialogOpen] = useState(false);
+  const [dialogTitle, setDialogTitle] = useState("");
 
+  const [controller, dispatch] = useMaterialUIController();
 
   const ITEM_HEIGHT = 48;
   const ITEM_PADDING_TOP = 8;
@@ -75,6 +88,39 @@ function Accidents() {
       },
     },
   };
+
+  const closeRemoveConfirmDialog = () => {
+    setRemoveConfirmDialogOpen(false);
+  }
+
+  const openRemoveConfirmDialog = () => {
+    setRemoveConfirmDialogOpen(true);
+  }
+
+  const onDeleteAccident = async () => {
+    if (!activeAccidentId)
+      return;
+    const response = await deleteAccident(activeAccidentId);
+    if (response) {
+        if (response.status === 200) {
+          const updatedAccidents = accidents.filter(a => a.id !== activeAccidentId);
+          setAccidents(updatedAccidents);
+          setActiveAccidentId(null);
+        } else {
+            console.error('Error on deleting accident: ', response);
+            showNotification(dispatch, "error", "An error occurred while removing accident data!");
+        }
+    } else {
+        console.error('No response from the server while deleting accident!');
+        showNotification(dispatch, "error", "No response from the server while removing accident data!");
+    }
+  }
+
+  const onDeleteButtonClick = (accidentId) => {
+    setDialogTitle(`Delete detected accident and all of its data permanently?`);
+    setActiveAccidentId(accidentId);
+    openRemoveConfirmDialog();
+  }
 
   const onDateFromChange = (newDate) => {
     setDateFrom(newDate);
@@ -88,7 +134,6 @@ function Accidents() {
     if (!accidents) {
       return [];
     }
-
     return accidents.map((accident, index) => (
       {
         detected: (
@@ -111,7 +156,12 @@ function Accidents() {
         ),
         image: (
           <ImageLoader accidentId={accident.id}/>
-        )
+        ),
+        deleteAccident: (
+          <IconButton color="dark" size="large" onClick={() => onDeleteButtonClick(accident.id)}>
+            <ClearIcon/>
+          </IconButton>
+        ),
       }
     ));
   }
@@ -134,7 +184,6 @@ function Accidents() {
   useEffect(() => {
     const fetchAccidents = async () => {
         const response = await getFilteredAccidents(skip, limit);
-        console.log(response)
         if (response) {
             if (response.status === 200) {
               const updatedResponse = response.data.map((accident) => ({...accident,
@@ -142,14 +191,20 @@ function Accidents() {
               setAccidents(updatedResponse);
             } else {
                 console.error('Error on fetching all accidents: ', response);
+                showNotification(dispatch, "error", "An error occurred while fetching accidents data!")
             }
         } else {
             console.error('No response from the server while fetching all accidents!');
+            showNotification(dispatch, "error", "No response from the server while fetching accidents data!")
         }
     };
       fetchAccidents().then(r => {});
   }, [])
 
+  const onConfirmRemoveButtonClick = async () => {
+    await onDeleteAccident();
+    closeRemoveConfirmDialog();
+  }
 
   useEffect(() => {
     const fetchAllSources = async () => {
@@ -181,9 +236,11 @@ function Accidents() {
               setAccidents(updatedResponse);
           } else {
               console.error('Error on fetching filtered accidents: ', response);
+              showNotification(dispatch, "error", "An error occurred while fetching filtered accidents!");
           }
       } else {
           console.error('No response from the server while fetching filtered accidents!');
+          showNotification(dispatch, "error", "No response from the server while fetching filtered accidents!");
       }
   };
 
@@ -207,9 +264,11 @@ function Accidents() {
             document.body.removeChild(a);
           } else {
               console.error('Error on downloading PDF: ', response);
+              showNotification(dispatch, "error", "An error occurred while exporting accidents PDF!")
           }
       } else {
           console.error('No response from the server while downloading PDF!');
+          showNotification(dispatch, "error", "No response from the server while exporting accidents PDF!")
       }
   };
 
@@ -234,9 +293,11 @@ function Accidents() {
             document.body.removeChild(a);
           } else {
               console.error('Error on downloading excel: ', response);
+              showNotification(dispatch, "error", "An error occurred while exporting accidents excel file!")
           }
       } else {
           console.error('No response from the server while downloading excel!');
+          showNotification(dispatch, "error", "No response from the server while exporting accidents excel file!")
       }
   };
 
@@ -267,109 +328,136 @@ function Accidents() {
 
   const onSelectSourcesChange = (event) => {
     const selected = event.target.value;
-    console.log(selected)
     setSelectedSources([...selected])
   };
 
   return (
     <DashboardLayout>
       <DashboardNavbar />
-      <MDBox pt={6} pb={3}>
-        <MDBox mb={5} sx={{ display: 'flex'}}>
-          <LocalizationProvider dateAdapter={AdapterDayjs}>
-            <DateTimePicker
-              ampm={false}
-              timeSteps={{minutes: 1}}
-              value={dateFrom}
-              label={"Filter by Date - from"}
-              onChange={onDateFromChange}
-              timezone={"system"}
-              format="YYYY-MM-DD HH:mm"
-              renderInput={(props) => <TextField {...props} />}
-            />
-            <DateTimePicker
-              ampm={false}
-              timeSteps={{minutes: 1}}
-              value={dateTo}
-              label={"Filter by Date - to"}
-              onChange={onDateToChange}
-              timezone={"system"}
-              format="YYYY-MM-DD HH:mm"
-              renderInput={(props) => <TextField {...props} />}
-            />
-          </LocalizationProvider>
-          <FormControl sx={{ width: 300 }}>
-            <InputLabel id="sources-multiple-select">Filter by Video Source</InputLabel>
-            <Select
-              labelId="sources-multiple-select"
-              id="sources-multiple-select"
-              multiple
-              value={selectedSources}
-              onChange={onSelectSourcesChange}
-              input={<OutlinedInput label="Filter by Video Source" />}
-              renderValue={(selected) => selected.map((source) => source.title).join(', ')}
-              MenuProps={MenuProps}
+        <MDBox pt={6} pb={3}>
+          <MDBox mb={2} sx={{ display: 'flex'}}>
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <DateTimePicker
+                ampm={false}
+                timeSteps={{minutes: 1}}
+                value={dateFrom}
+                label={"Filter by Date - from"}
+                onChange={onDateFromChange}
+                timezone={"system"}
+                format="YYYY-MM-DD HH:mm"
+                renderInput={(props) => <TextField {...props} />}
+                sx={{mr:2}}
+              />
+              <DateTimePicker
+                ampm={false}
+                timeSteps={{minutes: 1}}
+                value={dateTo}
+                label={"Filter by Date - to"}
+                onChange={onDateToChange}
+                timezone={"system"}
+                format="YYYY-MM-DD HH:mm"
+                renderInput={(props) => <TextField {...props} />}
+                sx={{mr:2}}
+              />
+            </LocalizationProvider>
+            <FormControl sx={{ width: 300 }}>
+              <InputLabel id="sources-multiple-select">Filter by Video Source</InputLabel>
+              <Select
+                labelId="sources-multiple-select"
+                id="sources-multiple-select"
+                multiple
+                value={selectedSources}
+                onChange={onSelectSourcesChange}
+                input={<OutlinedInput label="Filter by Video Source" />}
+                renderValue={(selected) => selected.map((source) => source.title).join(', ')}
+                MenuProps={MenuProps}
+                sx={{mr:2}}
+              >
+                {allSources.map((source) => (
+                  <MenuItem key={source.id} value={source}>
+                    <Checkbox checked={selectedSources.map((source) => source.id).indexOf(source.id) > -1} />
+                    <ListItemText primary={source.title} />
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <MDButton
+              onClick={onFilterButtonClick}
+              variant="contained"
+              color="info"
             >
-              {allSources.map((source) => (
-                <MenuItem key={source.id} value={source}>
-                  <Checkbox checked={selectedSources.map((source) => source.id).indexOf(source.id) > -1} />
-                  <ListItemText primary={source.title} />
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <MDButton
-            onClick={onFilterButtonClick}
-            variant="contained"
-            color="info"
-          >
-            Apply Filter
-          </MDButton>
+              Apply Filter
+            </MDButton>
+          </MDBox>
+          <MDBox sx={{mb: 8}}>
           <MDButton
             onClick={onExportPdfButtonClick}
             variant="contained"
-            color="info"
+            color="secondary"
+            sx={{mr: 2}}
           >
             Export to PDF
           </MDButton>
           <MDButton
             onClick={onExportExcelButtonClick}
             variant="contained"
-            color="info"
+            color="secondary"
           >
             Export to Excel
           </MDButton>
-        </MDBox>
-        <Grid container spacing={6}>
-          <Grid item xs={12}>
-            <Card>
-              <MDBox
-                mx={2}
-                mt={-3}
-                py={3}
-                px={2}
-                variant="gradient"
-                bgColor="info"
-                borderRadius="lg"
-                coloredShadow="info"
-              >
-                <MDTypography variant="h6" color="white">
-                  Accidents
-                </MDTypography>
-              </MDBox>
-              <MDBox pt={3}>
-                <DataTable
-                  table={{ columns, rows }}
-                  isSorted={false}
-                  entriesPerPage={false}
-                  showTotalEntries={false}
-                  noEndBorder
-                />
-              </MDBox>
-            </Card>
+          </MDBox>
+          <Grid container spacing={6}>
+            <Grid item xs={12}>
+              <Card>
+                <MDBox
+                  mx={2}
+                  mt={-3}
+                  py={3}
+                  px={2}
+                  variant="gradient"
+                  bgColor="info"
+                  borderRadius="lg"
+                  coloredShadow="info"
+                >
+                  <MDTypography variant="h6" color="white">
+                    Accidents
+                  </MDTypography>
+                </MDBox>
+                <MDBox pt={3}>
+                  <DataTable
+                    table={{ columns, rows }}
+                    isSorted={false}
+                    entriesPerPage={false}
+                    showTotalEntries={false}
+                    noEndBorder
+                  />
+                </MDBox>
+              </Card>
+            </Grid>
           </Grid>
-        </Grid>
-      </MDBox>
+        </MDBox>
+        <Dialog
+          open={removeConfirmDialogOpen}
+          onClose={closeRemoveConfirmDialog}
+        >
+          <DialogTitle>{dialogTitle}</DialogTitle>
+          <DialogActions>
+            <MDButton
+              onClick={onConfirmRemoveButtonClick}
+              variant="contained"
+              color="primary"
+            >
+              YES
+            </MDButton>
+            <MDButton
+              onClick={closeRemoveConfirmDialog}
+              variant="contained"
+              color="primary"
+            >
+              CANCEL
+            </MDButton>
+          </DialogActions>
+        </Dialog>
     </DashboardLayout>
   );
 }

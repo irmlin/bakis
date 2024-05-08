@@ -57,3 +57,7 @@ class AccidentController:
             return FileResponse(path=excel_path, filename=excel_name,
                                 media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                                 headers={'Access-Control-Expose-Headers': 'Content-Disposition'})
+
+        @router.delete("/{accident_id}")
+        def delete_accident(accident_id: int, db: Session = Depends(get_db)):
+            return self.accident_service.delete_accident(db, accident_id)

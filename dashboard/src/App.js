@@ -46,12 +46,14 @@ import createCache from "@emotion/cache";
 import routes from "routes";
 
 // Material Dashboard 2 React contexts
-import { useMaterialUIController, setMiniSidenav, setOpenConfigurator } from "Context";
+import { useMaterialUIController, setMiniSidenav, setOpenConfigurator, setNotificationOpen } from "Context";
 
 // Images
 import brandWhite from "Assets/images/logo-ct.png";
+import camLogo from "Assets/images/cam.png"
 import brandDark from "Assets/images/logo-ct-dark.png";
 import {ThemeProvider} from "@mui/system";
+import MDSnackbar from "./Components/MDSnackbar";
 
 export default function App() {
   const [controller, dispatch] = useMaterialUIController();
@@ -64,6 +66,10 @@ export default function App() {
     transparentSidenav,
     whiteSidenav,
     darkMode,
+    notificationOpen,
+    notificationColor,
+    notificationTitle,
+    notificationContent
   } = controller;
   const [onMouseEnter, setOnMouseEnter] = useState(false);
   const [rtlCache, setRtlCache] = useState(null);
@@ -86,6 +92,10 @@ export default function App() {
       setOnMouseEnter(true);
     }
   };
+
+  const onNotificationClose = () => {
+    setNotificationOpen(dispatch, false)
+  }
 
   // Close sidenav when mouse leave mini sidenav
   const handleOnMouseLeave = () => {
@@ -178,8 +188,8 @@ export default function App() {
         <>
           <Sidenav
             color={sidenavColor}
-            brand={(transparentSidenav && !darkMode) || whiteSidenav ? brandDark : brandWhite}
-            brandName={"Incident detection system"}
+            // brand={(transparentSidenav && !darkMode) || whiteSidenav ? brandDark : camLogo}
+            brandName={"Vehicle collision detection system"}
             routes={routes}
             onMouseEnter={handleOnMouseEnter}
             onMouseLeave={handleOnMouseLeave}
@@ -193,6 +203,16 @@ export default function App() {
         {getRoutes(routes)}
         <Route path="*" element={<Navigate to="/dashboard" />} />
       </Routes>
+      <MDSnackbar
+        color={notificationColor}
+        title={"System Message"}
+        content={notificationContent}
+        open={notificationOpen}
+        onClose={onNotificationClose}
+        close={onNotificationClose}
+        // bgWhite
+        dateTime={""}
+      />
     </ThemeProvider>
   );
 }

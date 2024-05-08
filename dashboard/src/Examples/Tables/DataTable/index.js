@@ -212,6 +212,7 @@ function DataTable({
                     noBorder={noEndBorder && rows.length - 1 === key}
                     align={cell.column.align ? cell.column.align : "left"}
                     {...cell.getCellProps()}
+                    verticalAlign={cell.column.verticalAlign ? cell.column.verticalAlign : "middle"}
                   >
                     {cell.render("Cell")}
                   </DataTableBodyCell>

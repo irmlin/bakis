@@ -13,7 +13,7 @@ class Accident(Base):
 
     id = Column(Integer, primary_key=True)
     type = Column(EnumType(AccidentType))
-    created_at = Column(DateTime, default=datetime.utcnow())
+    created_at = Column(DateTime)
     image_path = Column(String(250))
     video_path = Column(String(250))
     score = Column(Float)

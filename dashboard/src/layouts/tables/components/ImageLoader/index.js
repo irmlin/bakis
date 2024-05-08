@@ -27,7 +27,7 @@ export default function ImageLoader({accidentId}) {
       }
 
       fetchImage().then(r => {});
-  }, [])
+  }, [accidentId])
 
     const getImageSize = (base64String) => {
     const img = new Image();

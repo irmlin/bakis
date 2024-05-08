@@ -62,6 +62,18 @@ function reducer(state, action) {
     case "DARKMODE": {
       return { ...state, darkMode: action.value };
     }
+    case "NOTIFICATION_OPEN": {
+      return { ...state, notificationOpen: action.value };
+    }
+    case "NOTIFICATION_COLOR": {
+      return { ...state, notificationColor: action.value };
+    }
+    case "NOTIFICATION_TITLE": {
+      return { ...state, notificationTitle: action.value };
+    }
+    case "NOTIFICATION_CONTENT": {
+      return { ...state, notificationContent: action.value };
+    }
     default: {
       throw new Error(`Unhandled action type: ${action.type}`);
     }
@@ -81,6 +93,10 @@ function MaterialUIControllerProvider({ children }) {
     direction: "ltr",
     layout: "dashboard",
     darkMode: false,
+    notificationOpen: false,
+    notificationColor: "success",
+    notificationTitle: "",
+    notificationContent: ""
   };
 
   const [controller, dispatch] = useReducer(reducer, initialState);
@@ -119,6 +135,16 @@ const setOpenConfigurator = (dispatch, value) => dispatch({ type: "OPEN_CONFIGUR
 const setDirection = (dispatch, value) => dispatch({ type: "DIRECTION", value });
 const setLayout = (dispatch, value) => dispatch({ type: "LAYOUT", value });
 const setDarkMode = (dispatch, value) => dispatch({ type: "DARKMODE", value });
+const setNotificationOpen = (dispatch, value) => dispatch({ "type": "NOTIFICATION_OPEN", value })
+const setNotificationColor = (dispatch, value) => dispatch({ "type": "NOTIFICATION_COLOR", value })
+const setNotificationTitle = (dispatch, value) => dispatch({ "type": "NOTIFICATION_TITLE", value })
+const setNotificationContent = (dispatch, value) => dispatch({ "type": "NOTIFICATION_CONTENT", value })
+
+const showNotification = (dispatch, color, content) => {
+    setNotificationColor(dispatch, color);
+    setNotificationContent(dispatch, content);
+    setNotificationOpen(dispatch, true);
+}
 
 export {
   MaterialUIControllerProvider,
@@ -133,4 +159,9 @@ export {
   setDirection,
   setLayout,
   setDarkMode,
+  setNotificationOpen,
+  setNotificationTitle,
+  setNotificationContent,
+  setNotificationColor,
+  showNotification
 };

@@ -7,34 +7,6 @@ import video from './a.mp4'
 
 export default function DownloadableVideo({accidentId}) {
 
-  // const [videoUrl, setVideoUrl] = useState(null);
-  //
-  // const videoRef = useRef();
-  //   useEffect(() => {
-  //     videoRef.current?.load();
-  // }, [videoUrl]);
-  //
-  // useEffect(() => {
-  //   const fetchVideo = async () => {
-  //     const response = await downloadAccidentVideo(accidentId);
-  //     if (response) {
-  //       if (response.status === 200) {
-  //         console.log(response.data);
-  //         const videoBlob = new Blob([response.data]);
-  //         const videoUrl = URL.createObjectURL(videoBlob);
-  //         console.log(videoUrl);
-  //         setVideoUrl(videoUrl);
-  //       } else {
-  //           console.error('Error fetching accident video for display: ', response);
-  //       }
-  //     } else {
-  //         console.error('No response from the server while fetching accident video for display!');
-  //     }
-  //   };
-  //
-  //   fetchVideo().then(r => {});
-  // }, []);
-
   const onDownloadVideoButtonClick = async () => {
     const response = await downloadAccidentVideo(accidentId);
     if (response) {

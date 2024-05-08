@@ -1,12 +1,27 @@
 import MDBox from "Components/MDBox";
 import MDButton from "Components/MDButton";
 import {useState} from "react";
-import {Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle} from "@mui/material";
+import {
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogContentText,
+    DialogTitle,
+    FormControl, FormControlLabel, FormLabel, Radio,
+    RadioGroup
+} from "@mui/material";
 import MDInput from "Components/MDInput";
 import {startStream, uploadSource} from "Services/MediaService";
+import {
+    showNotification,
+    useMaterialUIController
+} from "Context";
+import Divider from "@mui/material/Divider";
 
 
 export default function LiveStreamControlPanel(props) {
+
+    const sourceTypes = {VIDEO: "VIDEO", STREAM: "STREAM"}
 
     const { newSourceTrigger, onNewSourceTrigger } = props;
 
@@ -14,8 +29,11 @@ export default function LiveStreamControlPanel(props) {
     const [source, setSource] = useState({
         "file": null,
         "title": "",
-        "description": ""
+        "description": "",
+        "type": sourceTypes.VIDEO,
+        "streamUrl": ""
     });
+    const [controller, dispatch] = useMaterialUIController();
 
     const onSelectVideoSourceButtonClick = () => {
         setSourceDialogOpen(true);
@@ -48,7 +66,23 @@ export default function LiveStreamControlPanel(props) {
     };
 
     function validateForm() {
-        return source.file && source.title && source.description;
+        if (!source.title) {
+            showNotification(dispatch, "error", "Source title field is required!")
+            return false;
+        }
+        else if (!source.description) {
+            showNotification(dispatch, "error", "Source description field is required!")
+            return false;
+        }
+        else if (source.type === sourceTypes.VIDEO && !source.file) {
+            showNotification(dispatch, "error", "Please select a video file!")
+            return false;
+        }
+        else if (source.type === sourceTypes.STREAM && !source.streamUrl) {
+            showNotification(dispatch, "error", "Stream URL field is required");
+            return false;
+        }
+        return true;
     }
 
     const startStreamInServer = async (video_id) => {
@@ -57,12 +91,15 @@ export default function LiveStreamControlPanel(props) {
             if (responseStartStream.status === 200) {
                 onSourceDialogClose();
                 console.log(`Video ID ${video_id} is now being streamed.`)
+                showNotification(dispatch, "success", "Video source is now streaming!")
                 onNewSourceTrigger(!newSourceTrigger);
             } else {
                 console.error('Error on triggering stream: ', responseStartStream);
+                showNotification(dispatch, "error", "An error occurred while starting the stream!")
             }
         } else {
             console.error('No response from the server while triggering stream!');
+            showNotification(dispatch, "error", "No response from the server!")
         }
     }
 
@@ -76,9 +113,12 @@ export default function LiveStreamControlPanel(props) {
         // Add form fields and files to the FormData object
         formData.append('title', source.title);
         formData.append('description', source.description);
-        formData.append('video_file', source.file);
-        formData.append('source_type', 'VIDEO');
-
+        formData.append('source_type', source.type);
+        if (source.type === sourceTypes.VIDEO)
+            formData.append('video_file', source.file);
+        else
+            formData.append('stream_url', source.streamUrl);
+        console.log(source.streamUrl)
         const responseUpload = await uploadSource(formData);
         if (responseUpload) {
             if (responseUpload.status === 200) {
@@ -86,10 +126,26 @@ export default function LiveStreamControlPanel(props) {
                 await startStreamInServer(responseUpload.data.id);
             } else {
                 console.error('Error uploading video:', responseUpload);
+                showNotification(dispatch, "error", "An error occurred while uploading the video source!")
             }
         } else {
             console.error('No response from the server while uploading video!');
+            showNotification(dispatch, "error", "No response from the server!")
         }
+    }
+
+    const onTypeSelectChange = (event) => {
+        setSource({
+            ...source,
+            type: event.target.value
+        });
+    }
+
+    const onStreamUrlTextfieldChange = (event) => {
+        setSource({
+            ...source,
+            streamUrl: event.target.value
+        });
     }
 
     return (
@@ -110,17 +166,42 @@ export default function LiveStreamControlPanel(props) {
             >
                 <DialogTitle>Select Video Source for Analysis</DialogTitle>
                 <DialogContent>
-                    <MDBox mb={1} mt={1}>
-                        <MDInput label="Video Source Title" fullWidth onChange={onTitleTextfieldChange} />
+                    <Divider sx={{mt: 0, mb: 0}} variant={"fullWidth"} />
+                    <FormControl>
+                      <FormLabel id="source-type-radio-group" disabled sx={{fontSize:16, fontWeight:"bold"}}>Source Type</FormLabel>
+                      <RadioGroup
+                        aria-labelledby="source-type-radio-group"
+                        name="source-type-radio-group"
+                        value={source.type}
+                        onChange={onTypeSelectChange}
+                        row
+                        sx={{mb: 2}}
+                      >
+                        <FormControlLabel value={sourceTypes.VIDEO} control={<Radio />} label="Video" />
+                        <FormControlLabel value={sourceTypes.STREAM} control={<Radio />} label="Stream" />
+                      </RadioGroup>
+                    </FormControl>
+                    <MDBox mb={2}>
+                        <MDInput label="Video Source Title" value={source.title} fullWidth onChange={onTitleTextfieldChange} />
                     </MDBox>
-                    <MDBox mb={1}>
-                        <MDInput label="Video Source Description" fullWidth onChange={onDescriptionTextfieldChange} />
+                    <MDBox mb={2}>
+                        <MDInput label="Video Source Description" value={source.description} fullWidth onChange={onDescriptionTextfieldChange} />
                     </MDBox>
-                    <input
-                        type="file"
-                        onChange={handleFileChange}
-                        accept=".mov,.mp4,.avi"
-                    />
+                    {
+                        source && source.type === sourceTypes.VIDEO ? (
+                            <MDBox>
+                                <input
+                                    type="file"
+                                    onChange={handleFileChange}
+                                    accept=".mov,.mp4,.avi"
+                                />
+                            </MDBox>
+                        ) : (
+                            <MDBox>
+                                <MDInput label="Stream URL" value={source.streamUrl} fullWidth onChange={onStreamUrlTextfieldChange} />
+                            </MDBox>
+                        )
+                    }
                 </DialogContent>
                 <DialogActions>
                     <MDButton

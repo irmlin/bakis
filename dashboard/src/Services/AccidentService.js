@@ -68,3 +68,14 @@ export const exportAccidentsExcel = async (queryParams) => {
     return err.response;
   }
 }
+
+
+export const deleteAccident = async (accidentId) => {
+  try {
+    console.log(accidentId);
+    return await axiosInstance.delete(`/accident/${accidentId}`);
+  } catch (err) {
+      console.error("Failed to delete accident with ID: ", accidentId, err);
+      return err.response;
+  }
+};

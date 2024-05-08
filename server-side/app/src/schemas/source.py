@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -9,9 +10,9 @@ class SourceBase(BaseModel):
     title: str
     description: str
     source_type: SourceType
+    stream_url: Optional[str] = None
 
 
-# TODO: this schema will have analyze_from, analyze_to fields
 class SourceCreate(SourceBase):
     pass
 

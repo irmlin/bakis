@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, UploadFile, File, Depends, Form, WebSocket
 from sqlalchemy.orm import Session
@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from ..dependencies import get_db
 from ..schemas import SourceRead, SourceCreate, SourceReadDetailed
 from ..services import MediaService
+
+from ..models.enums import SourceType
 
 
 # TODO: BaseController?
@@ -19,10 +21,11 @@ class MediaController:
 
     def __init_routes(self, router):
         @router.post("/", response_model=SourceRead)
-        def upload_source(title: str = Form(), description: str = Form(), video_file: UploadFile = File(...),
-                          source_type: str = Form(), db: Session = Depends(get_db)):
+        def upload_source(title: str = Form(), description: str = Form(), video_file: UploadFile = File(None),
+                          source_type: SourceType = Form(), stream_url: Optional[str] = Form(None),
+                          db: Session = Depends(get_db)):
             source_create = SourceCreate(title=title, description=description, source_type=source_type)
-            return self.media_service.upload_source(db, source_create, video_file)
+            return self.media_service.upload_source(db, source_create, video_file, stream_url)
 
         @router.get("/source/stream")
         def get_live_sources(db: Session = Depends(get_db)):

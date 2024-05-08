@@ -44,3 +44,12 @@ export const removeLiveStream = async (source_id) => {
       return err.response;
   }
 };
+
+export const deleteSource = async (sourceId) => {
+  try {
+    return await axiosInstance.delete(`/media/source/${sourceId}`);
+  } catch (err) {
+      console.error("Failed to delete source with ID: ", sourceId, err);
+      return err.response;
+  }
+};

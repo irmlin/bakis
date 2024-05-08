@@ -27,18 +27,25 @@ import DashboardNavbar from "Examples/Navbars/DashboardNavbar";
 import DataTable from "Examples/Tables/DataTable";
 
 import {useEffect, useState} from "react";
-import {getFilteredSources} from "../../Services/MediaService";
+import {deleteSource, getFilteredSources} from "../../Services/MediaService";
+import IconButton from "@mui/material/IconButton";
+import DeleteIcon from "@mui/icons-material/Delete";
+import {Dialog, DialogActions, DialogTitle} from "@mui/material";
+import MDButton from "../../Components/MDButton";
+import ClearIcon from "@mui/icons-material/Clear";
+import {showNotification, useMaterialUIController} from "../../Context";
 
 
 function Sources() {
 
   const columns = [
-      { Header: "title", accessor: "title", width: "20%", align: "left" },
+      { Header: "title", accessor: "title", align: "left" },
       { Header: "description", accessor: "description", align: "left" },
       { Header: "added", accessor: "added", align: "left" },
       { Header: "status", accessor: "status", align: "left" },
       { Header: "type", accessor: "type", align: "left" },
       { Header: "accidents detected", accessor: "numAccidents", align: "left" },
+      { Header: "", accessor: "deleteSource", align: "left", verticalAlign: "middle" },
     ];
 
   const sourceTypeMap = {"VIDEO": "Video", "STREAM": "Stream"}
@@ -47,7 +54,11 @@ function Sources() {
   const [rows, setRows] = useState([]);
   const [skip, setSkip] = useState(0);
   const [limit, setLimit] = useState(10);
+  const [removeConfirmDialogOpen, setRemoveConfirmDialogOpen] = useState(false);
+  const [activeSourceId, setActiveSourceId] = useState(null);
+  const [dialogTitle, setDialogTitle] = useState("");
 
+  const [controller, dispatch] = useMaterialUIController();
 
   const ITEM_HEIGHT = 48;
   const ITEM_PADDING_TOP = 8;
@@ -97,8 +108,54 @@ function Sources() {
             {source["num_accidents"]}
           </MDTypography>
         ),
+        deleteSource: (
+          <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
+            <IconButton color="dark" size="large" onClick={() => onDeleteButtonClick(source["id"])}>
+              <ClearIcon/>
+            </IconButton>
+          </MDTypography>
+        ),
       }
     ));
+  }
+
+  const onDeleteButtonClick = (sourceId) => {
+    let title = "";
+    if (sources) {
+      let s = sources.filter(ss => ss.id === sourceId);
+      if (s)
+        title = s[0].title;
+    }
+    setDialogTitle(`Delete video source \"${title}\" and all of its data permanently?`);
+    setActiveSourceId(sourceId);
+    openRemoveConfirmDialog();
+  }
+
+  const closeRemoveConfirmDialog = () => {
+    setRemoveConfirmDialogOpen(false);
+  }
+
+  const openRemoveConfirmDialog = () => {
+    setRemoveConfirmDialogOpen(true);
+  }
+
+  const onDeleteSource = async () => {
+    if (!activeSourceId)
+      return;
+    const response = await deleteSource(activeSourceId);
+    if (response) {
+        if (response.status === 200) {
+          const updatedSources = sources.filter(s => s.id !== activeSourceId);
+          setSources(updatedSources);
+          setActiveSourceId(null);
+        } else {
+            console.error('Error on deleting source: ', response);
+            showNotification(dispatch, "error", "An error occurred while deleting source!")
+        }
+    } else {
+        console.error('No response from the server while deleting source!');
+        showNotification(dispatch, "error", "No response from the server while deleting source!")
+    }
   }
 
   function shiftUtcDateToLocal(utcDateString) {
@@ -127,6 +184,10 @@ function Sources() {
     return queryParams;
   }
 
+  const onConfirmRemoveButtonClick = async () => {
+    await onDeleteSource();
+    closeRemoveConfirmDialog();
+  }
 
   useEffect(() => {
     const fetchSources = async () => {
@@ -139,9 +200,11 @@ function Sources() {
               setSources(updatedResponse);
             } else {
                 console.error('Error on fetching all accidents: ', response);
+                showNotification(dispatch, "error", "An error occurred while fetching video sources data!")
             }
         } else {
             console.error('No response from the server while fetching all accidents!');
+            showNotification(dispatch, "error", "No response from the server while fetching video sources data!")
         }
     };
       fetchSources().then(r => {});
@@ -187,6 +250,28 @@ function Sources() {
           </Grid>
         </Grid>
       </MDBox>
+      <Dialog
+        open={removeConfirmDialogOpen}
+        onClose={closeRemoveConfirmDialog}
+      >
+        <DialogTitle>{dialogTitle}</DialogTitle>
+        <DialogActions>
+          <MDButton
+            onClick={onConfirmRemoveButtonClick}
+            variant="contained"
+            color="error"
+          >
+            YES
+          </MDButton>
+          <MDButton
+            onClick={closeRemoveConfirmDialog}
+            variant="contained"
+            color="info"
+          >
+            CANCEL
+          </MDButton>
+        </DialogActions>
+      </Dialog>
     </DashboardLayout>
   );
 }

@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from ..models import Accident, Source
 from ..models.enums import accident_type_str_map
 from ..models.validation_models import DateRangeParams
-from ..utilities import generate_file_path, get_adjusted_timezone
+from ..utilities import generate_file_path, get_adjusted_timezone, delete_file
 
 
 class AccidentService:
@@ -227,6 +227,17 @@ class AccidentService:
     #     ext = os.path.splitext(db_accident.video_path)[1]
     #     return (db_accident.video_path,
     #             f'{db_accident.created_at}_from_{db_accident.video.title}_type_{db_accident.type}{ext}')
+
+    def delete_accident(self, db: Session, accident_id: int):
+        print(accident_id)
+        db_accident = self.get_accident_by_id(db, accident_id)
+        if db_accident is None:
+            raise HTTPException(status_code=404, detail=f'Accident with id {accident_id} not found.')
+        delete_file(db_accident.video_path)
+        delete_file(db_accident.image_path)
+        db.delete(db_accident)
+        db.commit()
+        return {'detail': f'Accident (id={accident_id}) has been deleted.'}
 
     # TODO: move to utils
     def __file_exists(self, file_path: str):

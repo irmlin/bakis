@@ -24,6 +24,7 @@ import IconButton from "@mui/material/IconButton";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ListItemText from "@mui/material/ListItemText";
 import Divider from "@mui/material/Divider";
+import {showNotification, useMaterialUIController} from "../../../Context";
 
 
 export default function SettingsControlPanel() {
@@ -31,6 +32,8 @@ export default function SettingsControlPanel() {
   const [threshold, setThreshold] = useState('');
   const [email, setEmail] = useState('');
   const [emails, setEmails] = useState([]);
+
+  const [controller, dispatch] = useMaterialUIController();
 
   const theme = useTheme();
   const THR_ITEM_HEIGHT = 48;
@@ -66,9 +69,11 @@ export default function SettingsControlPanel() {
                   setThreshold(response.data.car_crash_threshold.toFixed(2));
               } else {
                   console.error('Error on fetching threshold: ', response);
+                  showNotification(dispatch, "error", "An error occurred while fetching sensitivity threshold!")
               }
           } else {
               console.error('No response from the server while fetching threshold!');
+              showNotification(dispatch, "error", "No response from the server while fetching sensitivity threshold!")
           }
       }
 
@@ -80,13 +85,14 @@ export default function SettingsControlPanel() {
           const response = await getRecipients();
           if (response) {
               if (response.status === 200) {
-                  console.log(response.data);
                   setEmails(response.data);
               } else {
                   console.error('Error on fetching emails: ', response);
+                  showNotification(dispatch, "error", "An error occurred while fetching recipients list!")
               }
           } else {
               console.error('No response from the server while fetching emails!');
+              showNotification(dispatch, "error", "No response from the server while fetching recipients list!")
           }
       }
 
@@ -99,12 +105,14 @@ export default function SettingsControlPanel() {
     const response = await updateSensitivityThreshold(formData);
     if (response) {
         if (response.status === 200) {
-
+          showNotification(dispatch, "success", "Sensitivity threshold saved!")
         } else {
             console.error('Error on updating threshold: ', response);
+            showNotification(dispatch, "error", "An error occurred while updating sensitivity threshold!")
         }
     } else {
         console.error('No response from the server while updating threshold!');
+        showNotification(dispatch, "error", "No response from the server while updating sensitivity threshold!")
     }
   }
 
@@ -119,11 +127,14 @@ export default function SettingsControlPanel() {
     if (response) {
       if (response.status === 200) {
         setEmails(prevState => [...prevState, response.data]);
+        showNotification(dispatch, "success", "Recipients list has been updated!")
       } else {
-          console.error('Error on adding recipient: ', response);
+          console.error('Error on updating recipients list: ', response);
+          showNotification(dispatch, "error", "An error occurred while updating recipients list!")
       }
     } else {
       console.error('No response from the server while adding recipient!');
+      showNotification(dispatch, "error", "No response from the server while updating recipients list!")
     }
   }
 
@@ -135,9 +146,11 @@ export default function SettingsControlPanel() {
         setEmails(updatedEmails);
       } else {
           console.error('Error on deleting recipient: ', response);
+          showNotification(dispatch, "error", "An error occurred while removing recipient!")
       }
     } else {
       console.error('No response from the server while deleting recipient!');
+      showNotification(dispatch, "error", "No response from the server while removing recipient!")
     }
   }
 

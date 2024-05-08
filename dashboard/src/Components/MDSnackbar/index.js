@@ -32,6 +32,7 @@ import MDSnackbarIconRoot from "Components/MDSnackbar/MDSnackbarIconRoot";
 
 // Material Dashboard 2 React Context
 import { useMaterialUIController } from "Context";
+import ClearIcon from "@mui/icons-material/Clear";
 
 function MDSnackbar({ color, icon, title, dateTime, content, close, bgWhite, ...rest }) {
   const [controller] = useMaterialUIController();
@@ -58,7 +59,7 @@ function MDSnackbar({ color, icon, title, dateTime, content, close, bgWhite, ...
   return (
     <Snackbar
       TransitionComponent={Fade}
-      autoHideDuration={5000}
+      autoHideDuration={6000}
       anchorOrigin={{
         vertical: "bottom",
         horizontal: "right",
@@ -66,7 +67,7 @@ function MDSnackbar({ color, icon, title, dateTime, content, close, bgWhite, ...
       {...rest}
       action={
         <IconButton size="small" aria-label="close" color="inherit" onClick={close}>
-          <Icon fontSize="small">close</Icon>
+          <ClearIcon fontSize="small">close</ClearIcon>
         </IconButton>
       }
     >
@@ -107,7 +108,7 @@ function MDSnackbar({ color, icon, title, dateTime, content, close, bgWhite, ...
             <MDTypography variant="caption" color={dateTimeColor}>
               {dateTime}
             </MDTypography>
-            <Icon
+            <ClearIcon
               sx={{
                 color: ({ palette: { dark, white } }) =>
                   (bgWhite && !darkMode) || color === "light" ? dark.main : white.main,
@@ -118,8 +119,7 @@ function MDSnackbar({ color, icon, title, dateTime, content, close, bgWhite, ...
               }}
               onClick={close}
             >
-              close
-            </Icon>
+            </ClearIcon>
           </MDBox>
         </MDBox>
         <Divider sx={{ margin: 0 }} light={dividerColor} />

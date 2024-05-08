@@ -7,6 +7,7 @@ import sys
 import threading
 import time
 import traceback
+from datetime import datetime
 from multiprocessing import Queue
 from typing import List, Dict, Any
 
@@ -19,10 +20,10 @@ from sqlalchemy import func, desc
 from ..email import EmailManager
 from ..ml import WorkerMLInference
 from ..models import Source, Accident, Recipient, Threshold
-from ..models.enums import SourceStatus, AccidentType, accident_type_str_map
+from ..models.enums import SourceStatus, AccidentType, accident_type_str_map, SourceType
 from ..schemas import SourceCreate, SourceReadDetailed
 from ..stream import WorkerStreamReader
-from ..utilities import FileSize, generate_file_path, get_adjusted_timezone
+from ..utilities import FileSize, generate_file_path, get_adjusted_timezone, delete_file, file_exists
 from ..database import SessionLocal
 
 
@@ -62,24 +63,34 @@ class MediaService:
         self.__worker_stream_reader.start()
         self.__worker_ml_inference.start()
 
-    def upload_source(self, db: Session, source_create: SourceCreate, video_file: UploadFile):
-        video_size_bytes = self.get_file_size(file=video_file)
-        if video_size_bytes > self.file_size_limit_bytes:
-            raise HTTPException(status_code=400,
-                                detail=f'File size should not exceed'
-                                       f' {round(FileSize.get_gb(self.file_size_limit_bytes), 3)} GB.')
-        # TODO: add extension checks
-        extname = os.path.splitext(video_file.filename)[1]
-        file_path = generate_file_path(extname)
-        with open(file_path, "wb+") as buffer:
-            shutil.copyfileobj(video_file.file, buffer)
+    def upload_source(self, db: Session, source_create: SourceCreate, video_file: UploadFile, stream_url: str):
+        if source_create.source_type == SourceType.STREAM:
+            if stream_url is None:
+                raise HTTPException(status_code=400, detail=f'No stream URL provided!')
+            source_path = stream_url
+        else:
+            if video_file is None:
+                raise HTTPException(status_code=400, detail=f'No video file provided!')
+            video_size_bytes = self.get_file_size(file=video_file)
+            if video_size_bytes > self.file_size_limit_bytes:
+                raise HTTPException(status_code=400,
+                                    detail=f'File size should not exceed'
+                                           f' {round(FileSize.get_gb(self.file_size_limit_bytes), 3)} GB.')
+            extname = os.path.splitext(video_file.filename)[1]
+            file_path = generate_file_path(extname)
+            with open(file_path, "wb+") as buffer:
+                shutil.copyfileobj(video_file.file, buffer)
+            source_path = file_path
 
-        video_cap = cv2.VideoCapture(file_path)
+        video_cap = cv2.VideoCapture(source_path)
         fps = video_cap.get(cv2.CAP_PROP_FPS)
         width = video_cap.get(cv2.CAP_PROP_FRAME_WIDTH)
         height = video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-        source = Source(title=source_create.title, description=source_create.description, file_path=file_path,
-                        fps=fps, width=width, height=height, source_type=source_create.source_type)
+        source = Source(title=source_create.title, description=source_create.description,
+                        file_path=source_path if source_create.source_type == SourceType.VIDEO else None,
+                        stream_url=source_path if source_create.source_type == SourceType.STREAM else None,
+                        fps=fps, width=width, height=height, source_type=source_create.source_type,
+                        created_at=datetime.utcnow())
         video_cap.release()
         db.add(source)
         db.commit()
@@ -93,23 +104,26 @@ class MediaService:
         if db_source.status == SourceStatus.PROCESSING:
             raise HTTPException(status_code=409, detail=f'Source with id {source_id} is currently being streamed,'
                                                         f' stop streaming first!')
-        self.__delete_video_file(db_source.file_path)
+        delete_file(db_source.file_path)
+        self.__delete_source_accidents(db=db, source_id=source_id)
         db.delete(db_source)
         db.commit()
         return {'detail': f'Source (id={source_id}) has been deleted.'}
 
     async def start_inference_task(self, db: Session, source_id: int):
+        db_source = self.get_source_by_id(db, source_id)
+        if db_source is None:
+            raise HTTPException(status_code=404, detail=f'Source with id {source_id} not found')
+        if db_source.source_type == SourceType.VIDEO and not file_exists(db_source.file_path):
+            raise HTTPException(status_code=404, detail=f'Source (id={source_id}) file not found')
+
         if not self.__job_started:
             asyncio.create_task(self.__stream_to_client())
             self.__job_started = True
 
-        db_source = self.get_source_by_id(db, source_id)
-        if db_source is None:
-            raise HTTPException(status_code=404, detail=f'Source with id {source_id} not found')
-        if not self.__video_file_exists(db_source.file_path):
-            raise HTTPException(status_code=404, detail=f'Source (id={source_id}) file not found')
-
-        self.__worker_stream_reader.add_source(source_id, db_source.file_path)
+        self.__worker_stream_reader.add_source(source_id,
+                                               db_source.file_path if db_source.source_type == SourceType.VIDEO
+                                               else db_source.stream_url)
         self.__internal_state[source_id] = {'q': queue.Queue(maxsize=1000),
                                             'ready': False,
                                             'last_sent_time': time.time(),
@@ -279,7 +293,8 @@ class MediaService:
         self.__internal_state[source_id]['video_cache'] = []
 
         accident = Accident(type=AccidentType.CAR_CRASH, image_path=image_path,
-                            source_id=source_id, video_path=video_path, score=list(scores)[self.__accident_class_id])
+                            source_id=source_id, video_path=video_path, created_at=datetime.utcnow(),
+                            score=list(scores)[self.__accident_class_id])
 
         accident_id = self.__temp_add_accident(accident=accident)
         asyncio.create_task(self.__inform_about_accident(accident_id=accident_id))
@@ -400,13 +415,6 @@ class MediaService:
     def get_live_sources(self, db: Session):
         return db.query(Source).filter(Source.status == SourceStatus.PROCESSING).all()
 
-    def __video_file_exists(self, file_path: str):
-        return os.path.exists(file_path)
-
-    def __delete_video_file(self, file_path: str):
-        if self.__video_file_exists(file_path):
-            os.remove(file_path)
-
     def __temp_set_source_status_processed(self, source_id: int):
         db_temp = SessionLocal()
         db_source = self.get_source_by_id(db_temp, source_id)
@@ -436,3 +444,12 @@ class MediaService:
         recipients = self.__get_recipients(db_temp)
         db_temp.close()
         return recipients
+
+    def __delete_source_accidents(self, db: Session, source_id: int):
+        source_accidents = db.query(Accident).filter(Accident.source_id == source_id).all()
+        for accident in source_accidents:
+            delete_file(accident.video_path)
+            delete_file(accident.image_path)
+            db.delete(accident)
+        db.commit()
+

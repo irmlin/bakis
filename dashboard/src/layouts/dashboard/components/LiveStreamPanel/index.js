@@ -4,12 +4,15 @@ import {StreamPlayer} from "Components/Media/StreamPlayer";
 import Grid from "@mui/material/Grid";
 import MDBox from "../../../../Components/MDBox";
 import ComplexStatisticsCard from "../../../../Examples/Cards/StatisticsCards/ComplexStatisticsCard";
+import {showNotification, useMaterialUIController} from "../../../../Context";
 
 
 export default function LiveStreamPanel(props) {
 
     const { newSourceTrigger } = props;
     const [liveStreams, setLiveStreams] = useState([]);
+
+    const [controller, dispatch] = useMaterialUIController();
 
     const isObjectInArray = (array, id) => {
         return array.some(obj => obj && obj.id === id);
@@ -28,11 +31,14 @@ export default function LiveStreamPanel(props) {
                     }
                     return prevStreams;
                 });
+                showNotification(dispatch, "success", "Video stream has been removed!")
             } else {
                 console.error('Error on removing live stream: ', response);
+                showNotification(dispatch, "error", "An error occurred while attempting to terminate stream!")
             }
         } else {
             console.error('No response from the server while removing stream!');
+            showNotification(dispatch, "error", "No response from the server while attempting to remove stream!")
         }
     };
 
@@ -48,9 +54,11 @@ export default function LiveStreamPanel(props) {
                     setLiveStreams([...liveStreams, ...newStreams]);
                 } else {
                     console.error('Error on fetching live streams: ', response);
+                    showNotification(dispatch, "error", "An error occurred while fetching live video streams!")
                 }
             } else {
                 console.error('No response from the server while fetching all streams!');
+                showNotification(dispatch, "error", "No response from the server while fetching live video streams!")
             }
         }
 

@@ -99,6 +99,7 @@ class WorkerStreamReader:
             live_source_ids = self.__caps.keys()
             for source_id, source_str in self.__sources.items():
                 if source_id not in live_source_ids:
+                    print(source_str)
                     video_cap = cv2.VideoCapture(source_str)
                     self.__caps[source_id] = {
                         'cap': video_cap,

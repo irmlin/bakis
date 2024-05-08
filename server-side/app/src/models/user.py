@@ -14,5 +14,5 @@ class User(Base):
     last_name = Column(String(30))
     email = Column(String(50))
     password_hash = Column(String(100))
-    created_at = Column(DateTime, default=datetime.utcnow())
+    created_at = Column(DateTime)
     is_active = Column(Boolean, default=False)

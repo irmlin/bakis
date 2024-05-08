@@ -16,11 +16,12 @@ class Source(Base):
     title = Column(String(50))
     description = Column(String(250))
     file_path = Column(String(250))
-    created_at = Column(DateTime, default=datetime.utcnow())
+    created_at = Column(DateTime)
     status = Column(EnumType(SourceStatus), default=SourceStatus.NOT_PROCESSED)
     fps = Column(Float)
     height = Column(Float)
     width = Column(Float)
     source_type = Column(EnumType(SourceType), default=SourceType.VIDEO)
+    stream_url = Column(String(250))
 
     accidents = relationship("Accident", back_populates="source")
