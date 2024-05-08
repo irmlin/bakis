@@ -63,6 +63,10 @@ export default function LiveStreamPanel(props) {
         }
 
         fetchLiveVideos().then(r => {});
+        const interval = setInterval(() => fetchLiveVideos(), 10000);
+        return () => {
+          clearInterval(interval);
+        }
     }, [newSourceTrigger])
 
     return (
