@@ -6,13 +6,21 @@ from ..models.enums import AccidentType
 from ..schemas import SourceBase
 
 
-class AccidentRead(BaseModel):
-    id: int
-    created_at: datetime
+class AccidentBase(BaseModel):
     type: AccidentType
     score: float
     source_id: int
+    created_at: datetime
+
+
+class AccidentRead(AccidentBase):
+    id: int
     source: SourceBase
 
-    class Config:
-        orm_mode = True
+    class ConfigDict:
+        from_attributes = True
+
+
+class AccidentCreate(AccidentBase):
+    image_path: str
+    video_path: str

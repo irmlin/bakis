@@ -22,8 +22,8 @@ class SourceRead(SourceBase):
     created_at: datetime
     status: SourceStatus
 
-    class Config:
-        orm_mode = True
+    class ConfigDict:
+        from_attributes = True
 
 
 class SourceReadDetailed(SourceRead):

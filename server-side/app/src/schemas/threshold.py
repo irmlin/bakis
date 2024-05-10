@@ -8,8 +8,8 @@ from ..models.enums import AccidentType
 class CarCrashThresholdRead(BaseModel):
     car_crash_threshold: float
 
-    class Config:
-        orm_mode = True
+    class ConfigDict:
+        from_attributes = True
 
 
 class CarCrashThresholdUpdate(BaseModel):
