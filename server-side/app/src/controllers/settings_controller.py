@@ -35,5 +35,5 @@ class SettingsController:
             return self.settings_service.add_recipient(db=db, email=email)
 
         @router.delete("/recipient/{recipient_id}")
-        def update_threshold(recipient_id: int, db: Session = Depends(get_db)):
+        def delete_recipient(recipient_id: int, db: Session = Depends(get_db)):
             return self.settings_service.delete_recipient(db=db, recipient_id=recipient_id)

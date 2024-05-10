@@ -104,7 +104,8 @@ class MediaService:
         if db_source.status == SourceStatus.PROCESSING:
             raise HTTPException(status_code=409, detail=f'Source with id {source_id} is currently being streamed,'
                                                         f' stop streaming first!')
-        delete_file(db_source.file_path)
+        if db_source.source_type == SourceType.VIDEO:
+            delete_file(db_source.file_path)
         self.__delete_source_accidents(db=db, source_id=source_id)
         db.delete(db_source)
         db.commit()
