@@ -23,7 +23,7 @@ import Icon from "@mui/material/Icon";
 import MDBox from "Components/MDBox";
 
 // Material Dashboard 2 React contexts
-import { useMaterialUIController } from "Context";
+import { useMaterialUIController } from "Context/MaterialUIContextProvider";
 
 function DataTableHeadCell({ width, children, sorted, align, ...rest }) {
   const [controller] = useMaterialUIController();

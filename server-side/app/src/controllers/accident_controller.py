@@ -3,8 +3,9 @@ from typing import List
 from fastapi import APIRouter, Depends, Response, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
+from typing_extensions import Annotated
 
-from ..dependencies import get_db
+from ..dependencies import get_db, get_current_user
 from ..services import AccidentService
 from ..schemas import AccidentRead
 from ..models.validation_models import DateRangeParams
@@ -59,5 +60,5 @@ class AccidentController:
                                 headers={'Access-Control-Expose-Headers': 'Content-Disposition'})
 
         @router.delete("/{accident_id}")
-        def delete_accident(accident_id: int, db: Session = Depends(get_db)):
+        def delete_accident(current_user: Annotated[str, Depends(get_current_user)], accident_id: int, db: Session = Depends(get_db)):
             return self.accident_service.delete_accident(db, accident_id)

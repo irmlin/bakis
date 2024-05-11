@@ -40,11 +40,50 @@ import BasicLayout from "layouts/authentication/components/BasicLayout";
 
 // Images
 import bgImage from "Assets/images/bg-sign-in-basic.jpeg";
+import {showNotification, useMaterialUIController} from "../../../Context/MaterialUIContextProvider";
+import {login} from "../../../Services/AuthService";
 
 function Basic() {
-  const [rememberMe, setRememberMe] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
 
-  const handleSetRememberMe = () => setRememberMe(!rememberMe);
+  const [controller, dispatch] = useMaterialUIController();
+
+  const onUsernameChange = (event) => {
+    setUsername(event.target.value);
+  }
+
+  const onPasswordChange = (event) => {
+    setPassword(event.target.value);
+  }
+
+  function validateFields() {
+    return username && password;
+  }
+
+  const handleLogin = async () => {
+    if (!validateFields()) {
+      showNotification(dispatch, "error", "Username and Password fields are required!")
+      return;
+    }
+    const formData = new FormData();
+    formData.append('username', username);
+    formData.append('password', password);
+    const response = await login(formData);
+    if (response) {
+      if (response.status === 200) {
+        // parse response, save token in storage
+        localStorage.setItem('token', response.data.access_token);
+        localStorage.setItem('admin', true);
+        window.location = "/dashboard";
+      } else {
+        showNotification(dispatch, "error", response.data.detail);
+      }
+    } else {
+      showNotification(dispatch, "error", "No response from the server while logging in!")
+    }
+  }
+
 
   return (
     <BasicLayout image={bgImage}>
@@ -61,49 +100,20 @@ function Basic() {
           textAlign="center"
         >
           <MDTypography variant="h4" fontWeight="medium" color="white" mt={1}>
-            Sign in
+            Admin Login
           </MDTypography>
-          <Grid container spacing={3} justifyContent="center" sx={{ mt: 1, mb: 2 }}>
-            <Grid item xs={2}>
-              <MDTypography component={MuiLink} href="#" variant="body1" color="white">
-                <FacebookIcon color="inherit" />
-              </MDTypography>
-            </Grid>
-            <Grid item xs={2}>
-              <MDTypography component={MuiLink} href="#" variant="body1" color="white">
-                <GitHubIcon color="inherit" />
-              </MDTypography>
-            </Grid>
-            <Grid item xs={2}>
-              <MDTypography component={MuiLink} href="#" variant="body1" color="white">
-                <GoogleIcon color="inherit" />
-              </MDTypography>
-            </Grid>
-          </Grid>
         </MDBox>
         <MDBox pt={4} pb={3} px={3}>
           <MDBox component="form" role="form">
             <MDBox mb={2}>
-              <MDInput type="email" label="Email" fullWidth />
+              <MDInput type="email" label="Username" fullWidth onChange={onUsernameChange}/>
             </MDBox>
             <MDBox mb={2}>
-              <MDInput type="password" label="Password" fullWidth />
-            </MDBox>
-            <MDBox display="flex" alignItems="center" ml={-1}>
-              <Switch checked={rememberMe} onChange={handleSetRememberMe} />
-              <MDTypography
-                variant="button"
-                fontWeight="regular"
-                color="text"
-                onClick={handleSetRememberMe}
-                sx={{ cursor: "pointer", userSelect: "none", ml: -1 }}
-              >
-                &nbsp;&nbsp;Remember me
-              </MDTypography>
+              <MDInput type="password" label="Password" fullWidth onChange={onPasswordChange}/>
             </MDBox>
             <MDBox mt={4} mb={1}>
-              <MDButton variant="gradient" color="info" fullWidth>
-                sign in
+              <MDButton variant="gradient" color="info" fullWidth onClick={handleLogin}>
+                Login
               </MDButton>
             </MDBox>
             <MDBox mt={3} mb={1} textAlign="center">

@@ -24,7 +24,7 @@ import MDBox from "Components/MDBox";
 import MDTypography from "Components/MDTypography";
 
 // Material Dashboard 2 React components
-import { useMaterialUIController } from "Context";
+import { useMaterialUIController } from "Context/MaterialUIContextProvider";
 
 // Timeline Context
 import { TimelineProvider } from "Examples/Timeline/Context";

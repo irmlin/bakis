@@ -15,8 +15,9 @@ import {startStream, uploadSource} from "Services/MediaService";
 import {
     showNotification,
     useMaterialUIController
-} from "Context";
+} from "Context/MaterialUIContextProvider";
 import Divider from "@mui/material/Divider";
+import {useAuthorizationContext} from "../../../../Context/AuthorizationContextProvider";
 
 
 export default function LiveStreamControlPanel(props) {
@@ -24,6 +25,8 @@ export default function LiveStreamControlPanel(props) {
     const sourceTypes = {VIDEO: "VIDEO", STREAM: "STREAM"}
 
     const { newSourceTrigger, onNewSourceTrigger } = props;
+
+    const [allowed] = useAuthorizationContext();
 
     const [sourceDialogOpen, setSourceDialogOpen] = useState(false);
     const [source, setSource] = useState({
@@ -149,6 +152,7 @@ export default function LiveStreamControlPanel(props) {
     }
 
     return (
+        allowed &&
         <>
             <MDBox mt={2} mb={4}>
                 <MDButton

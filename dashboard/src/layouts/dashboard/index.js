@@ -18,7 +18,6 @@ import {useState} from "react";
 // Material Dashboard 2 React example components
 import DashboardLayout from "Examples/LayoutContainers/DashboardLayout";
 import DashboardNavbar from "Examples/Navbars/DashboardNavbar";
-import reportsLineChartData from "layouts/dashboard/data/reportsLineChartData";
 
 import LiveStreamControlPanel from "./components/LiveStreamControlPanel";
 import LiveStreamPanel from "./components/LiveStreamPanel";

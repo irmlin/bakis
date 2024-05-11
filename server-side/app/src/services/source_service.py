@@ -331,7 +331,7 @@ class SourceService:
         if db_source is None:
             raise HTTPException(status_code=404, detail=f'Source with id {source_id} not found!')
         if source_id not in self.__connections.keys():
-            raise HTTPException(status_code=400, detail=f'Stream for source (id={source_id} )has alrrespeady ended prior to this request!')
+            raise HTTPException(status_code=400, detail=f'Stream for source (id={source_id} ) has already ended prior to this request!')
         self.__worker_stream_reader.remove_source(source_id)
 
         self.__sources_to_terminate.append(source_id)

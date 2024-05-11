@@ -2,9 +2,7 @@ import {useEffect, useState} from "react";
 import {getLiveStreams, removeLiveStream} from "Services/MediaService";
 import {StreamPlayer} from "Components/Media/StreamPlayer";
 import Grid from "@mui/material/Grid";
-import MDBox from "../../../../Components/MDBox";
-import ComplexStatisticsCard from "../../../../Examples/Cards/StatisticsCards/ComplexStatisticsCard";
-import {showNotification, useMaterialUIController} from "../../../../Context";
+import {showNotification, useMaterialUIController} from "../../../../Context/MaterialUIContextProvider";
 
 
 export default function LiveStreamPanel(props) {
@@ -20,8 +18,9 @@ export default function LiveStreamPanel(props) {
 
     const handleRemoveStream = async (streamId) => {
         const response = await removeLiveStream(streamId);
+        console.log(response);
         if (response) {
-            if (response.status === 200) {
+            if (response.status === 200 || response.response.status === 400) {
                 setLiveStreams(prevStreams => {
                     const indexToRemove = prevStreams.findIndex(stream => stream && stream.id === streamId);
                     if (indexToRemove !== -1) {

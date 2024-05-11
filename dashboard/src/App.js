@@ -46,7 +46,7 @@ import createCache from "@emotion/cache";
 import routes from "routes";
 
 // Material Dashboard 2 React contexts
-import { useMaterialUIController, setMiniSidenav, setOpenConfigurator, setNotificationOpen } from "Context";
+import { useMaterialUIController, setMiniSidenav, setOpenConfigurator, setNotificationOpen } from "Context/MaterialUIContextProvider";
 
 // Images
 import brandWhite from "Assets/images/logo-ct.png";
@@ -146,6 +146,7 @@ export default function App() {
       right="2rem"
       bottom="2rem"
       zIndex={99}
+      zIndex={99}
       color="dark"
       sx={{ cursor: "pointer" }}
       onClick={handleConfiguratorOpen}
@@ -201,7 +202,7 @@ export default function App() {
       {/*{layout === "vr" && <Configurator />}*/}
       <Routes>
         {getRoutes(routes)}
-        <Route path="*" element={<Navigate to="/dashboard" />} />
+        <Route path="*" element={<Navigate to="/authentication/sign-in" />} />
       </Routes>
       <MDSnackbar
         color={notificationColor}

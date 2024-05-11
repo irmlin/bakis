@@ -25,7 +25,7 @@ import MDTypography from "Components/MDTypography";
 import MDButton from "Components/MDButton";
 
 // Material Dashboard 2 React Context
-import { useMaterialUIController } from "Context";
+import { useMaterialUIController } from "Context/MaterialUIContextProvider";
 
 function Bill({ name, company, email, vat, noGutter }) {
   const [controller] = useMaterialUIController();

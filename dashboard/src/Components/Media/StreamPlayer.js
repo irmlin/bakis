@@ -2,14 +2,13 @@ import {useRef, useEffect, useState} from 'react';
 import MDAlert from "../MDAlert";
 import MDTypography from "../MDTypography";
 import MDButton from "../MDButton";
-import Icon from "@mui/material/Icon";
 import DeleteIcon from '@mui/icons-material/Delete';
 import IconButton from "@mui/material/IconButton";
-import {CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle} from "@mui/material";
-import MDInput from "../MDInput";
+import {CircularProgress, Dialog, DialogActions, DialogTitle} from "@mui/material";
 import StreamStatusChart from "../../layouts/dashboard/components/StreamStatusChart";
 import Card from "@mui/material/Card";
 import MDBox from "../MDBox";
+import {useAuthorizationContext} from "../../Context/AuthorizationContextProvider";
 
 export const StreamPlayer = (props) => {
 
@@ -25,6 +24,8 @@ export const StreamPlayer = (props) => {
 
   const wsRef = useRef(null);
   const {streamInfo, onStreamRemove} = props;
+
+  const [allowed] = useAuthorizationContext();
 
   useEffect(() => {
     if (!wsRef.current) {
@@ -127,9 +128,13 @@ export const StreamPlayer = (props) => {
                     {streamInfo.description}
                   </MDTypography>
                 </MDBox>
-                <IconButton color="error" size="large" onClick={openRemoveConfirmDialog}>
-                  <DeleteIcon/>
-                </IconButton>
+                {
+                  allowed &&
+                  <IconButton color="error" size="large" onClick={openRemoveConfirmDialog}>
+                    <DeleteIcon/>
+                  </IconButton>
+                }
+
               </div>
             </div>
             <Dialog

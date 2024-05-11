@@ -33,7 +33,8 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import {Dialog, DialogActions, DialogTitle} from "@mui/material";
 import MDButton from "../../Components/MDButton";
 import ClearIcon from "@mui/icons-material/Clear";
-import {showNotification, useMaterialUIController} from "../../Context";
+import {showNotification, useMaterialUIController} from "../../Context/MaterialUIContextProvider";
+import {useAuthorizationContext} from "../../Context/AuthorizationContextProvider";
 
 
 function Sources() {
@@ -59,6 +60,7 @@ function Sources() {
   const [dialogTitle, setDialogTitle] = useState("");
 
   const [controller, dispatch] = useMaterialUIController();
+  const [allowed] = useAuthorizationContext();
 
   const ITEM_HEIGHT = 48;
   const ITEM_PADDING_TOP = 8;
@@ -76,47 +78,49 @@ function Sources() {
       return [];
     }
 
-    return sources.map((source, index) => (
-      {
-        title: (
-          <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
-            {source["title"]}
-          </MDTypography>
-        ),
-        description: (
-          <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
-            {source["description"]}
-          </MDTypography>
-        ),
-        added: (
-          <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
-            {source["created_at"]}
-          </MDTypography>
-        ),
-        status: (
-          <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
-            {source["status"]}
-          </MDTypography>
-        ),
-        type: (
-          <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
-            {source["source_type"]}
-          </MDTypography>
-        ),
-        numAccidents: (
-          <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
-            {source["num_accidents"]}
-          </MDTypography>
-        ),
-        deleteSource: (
-          <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
-            <IconButton color="dark" size="large" onClick={() => onDeleteButtonClick(source["id"])}>
-              <ClearIcon/>
-            </IconButton>
-          </MDTypography>
-        ),
-      }
-    ));
+    return sources.map((source, index) => {
+        const deleteSourceElement = allowed ? (
+            <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
+                <IconButton color="dark" size="large" onClick={() => onDeleteButtonClick(source["id"])}>
+                    <ClearIcon/>
+                </IconButton>
+            </MDTypography>
+        ) : null;
+
+        return {
+            title: (
+                <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
+                    {source["title"]}
+                </MDTypography>
+            ),
+            description: (
+                <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
+                    {source["description"]}
+                </MDTypography>
+            ),
+            added: (
+                <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
+                    {source["created_at"]}
+                </MDTypography>
+            ),
+            status: (
+                <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
+                    {source["status"]}
+                </MDTypography>
+            ),
+            type: (
+                <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
+                    {source["source_type"]}
+                </MDTypography>
+            ),
+            numAccidents: (
+                <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
+                    {source["num_accidents"]}
+                </MDTypography>
+            ),
+            deleteSource: deleteSourceElement,
+        };
+    })
   }
 
   const onDeleteButtonClick = (sourceId) => {

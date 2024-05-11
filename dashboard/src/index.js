@@ -19,17 +19,18 @@ import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 
 // Material Dashboard 2 React Context Provider
-import { MaterialUIControllerProvider } from "./Context";
-import {LocalizationProvider, TimePicker} from "@mui/x-date-pickers";
-import {AdapterDayjs} from "@mui/x-date-pickers/AdapterDayjs";
+import { MaterialUIControllerProvider } from "./Context/MaterialUIContextProvider";
+import {AuthorizationContextProvider} from "./Context/AuthorizationContextProvider";
 
 const container = document.getElementById("root");
 const root = createRoot(container);
 
 root.render(
   <BrowserRouter>
-    <MaterialUIControllerProvider>
-      <App />
-    </MaterialUIControllerProvider>
+    <AuthorizationContextProvider>
+      <MaterialUIControllerProvider>
+        <App />
+      </MaterialUIControllerProvider>
+    </AuthorizationContextProvider>
   </BrowserRouter>
 );

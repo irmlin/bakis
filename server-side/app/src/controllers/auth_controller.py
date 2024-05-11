@@ -19,7 +19,7 @@ class AuthController:
         self.__init_routes(router=self.router)
 
     def __init_routes(self, router):
-        @router.post("/token")
+        @router.post("/login")
         async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Session = Depends(get_db)):
             return self.auth_service.login(form_data=form_data, db=db)
         # @router.get("/user")

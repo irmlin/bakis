@@ -48,7 +48,8 @@ import ListItemText from "@mui/material/ListItemText";
 import TextField from "@mui/material/TextField";
 import IconButton from "@mui/material/IconButton";
 import ClearIcon from '@mui/icons-material/Clear';
-import {showNotification, useMaterialUIController} from "../../Context";
+import {showNotification, useMaterialUIController} from "../../Context/MaterialUIContextProvider";
+import {useAuthorizationContext} from "../../Context/AuthorizationContextProvider";
 
 
 function Accidents() {
@@ -77,6 +78,7 @@ function Accidents() {
   const [dialogTitle, setDialogTitle] = useState("");
 
   const [controller, dispatch] = useMaterialUIController();
+  const [allowed] = useAuthorizationContext();
 
   const ITEM_HEIGHT = 48;
   const ITEM_PADDING_TOP = 8;
@@ -134,37 +136,41 @@ function Accidents() {
     if (!accidents) {
       return [];
     }
-    return accidents.map((accident, index) => (
-      {
-        detected: (
-          <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
-            {accident["created_at"]}
-          </MDTypography>
-        ),
-        camera: (
-          <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
-            {accident["source"]["title"]}
-          </MDTypography>
-        ),
-        type: (
-          <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
-            {accidentTypeMap[accident["type"]] || accident["type"]}
-          </MDTypography>
-        ),
-        video: (
-          <DownloadableVideo accidentId={accident.id}/>
-        ),
-        image: (
-          <ImageLoader accidentId={accident.id}/>
-        ),
-        deleteAccident: (
-          <IconButton color="dark" size="large" onClick={() => onDeleteButtonClick(accident.id)}>
-            <ClearIcon/>
-          </IconButton>
-        ),
-      }
-    ));
+
+    return accidents.map((accident, index) => {
+        const deleteAccidentElement = allowed ? (
+              <IconButton color="dark" size="large" onClick={() => onDeleteButtonClick(accident.id)}>
+                  <ClearIcon/>
+              </IconButton>
+        ) : null;
+
+        return {
+          detected: (
+              <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
+                  {accident["created_at"]}
+              </MDTypography>
+          ),
+          camera: (
+              <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
+                  {accident["source"]["title"]}
+              </MDTypography>
+          ),
+          type: (
+              <MDTypography component="a" href="#" variant="caption" color="text" fontWeight="medium">
+                  {accidentTypeMap[accident["type"]] || accident["type"]}
+              </MDTypography>
+          ),
+          video: (
+              <DownloadableVideo accidentId={accident.id}/>
+          ),
+          image: (
+              <ImageLoader accidentId={accident.id}/>
+          ),
+          deleteAccidentElement
+        };
+    })
   }
+
 
   function shiftUtcDateToLocal(utcDateString) {
     let offsetMinutes = new Date().getTimezoneOffset();
@@ -232,7 +238,7 @@ function Accidents() {
       if (response) {
           if (response.status === 200) {
               const updatedResponse = response.data.map((accident) => ({...accident,
-                created_at: shiftUtcDateToLocal(accident.created_at)}))
+                created_at: shiftUtcDateToLocal(accident.created_at)}));
               setAccidents(updatedResponse);
           } else {
               console.error('Error on fetching filtered accidents: ', response);
@@ -264,7 +270,7 @@ function Accidents() {
             document.body.removeChild(a);
           } else {
               console.error('Error on downloading PDF: ', response);
-              showNotification(dispatch, "error", "An error occurred while exporting accidents PDF!")
+              showNotification(dispatch, "error", "No accidents found with specified filter!")
           }
       } else {
           console.error('No response from the server while downloading PDF!');
@@ -293,7 +299,7 @@ function Accidents() {
             document.body.removeChild(a);
           } else {
               console.error('Error on downloading excel: ', response);
-              showNotification(dispatch, "error", "An error occurred while exporting accidents excel file!")
+              showNotification(dispatch, "error", "No accidents found with specified filter!")
           }
       } else {
           console.error('No response from the server while downloading excel!');

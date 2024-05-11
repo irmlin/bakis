@@ -24,7 +24,7 @@ import IconButton from "@mui/material/IconButton";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ListItemText from "@mui/material/ListItemText";
 import Divider from "@mui/material/Divider";
-import {showNotification, useMaterialUIController} from "../../../Context";
+import {showNotification, useMaterialUIController} from "../../../Context/MaterialUIContextProvider";
 
 
 export default function SettingsControlPanel() {

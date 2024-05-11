@@ -38,7 +38,7 @@ import DefaultNavbarMobile from "Examples/Navbars/DefaultNavbar/DefaultNavbarMob
 import breakpoints from "Assets/theme/base/breakpoints";
 
 // Material Dashboard 2 React Context
-import { useMaterialUIController } from "Context";
+import { useMaterialUIController } from "Context/MaterialUIContextProvider";
 
 function DefaultNavbar({ transparent, light, action }) {
   const [controller] = useMaterialUIController();

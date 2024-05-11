@@ -29,7 +29,7 @@ import masterCardLogo from "Assets/images/logos/mastercard.png";
 import visaLogo from "Assets/images/logos/visa.png";
 
 // Material Dashboard 2 React Context
-import { useMaterialUIController } from "Context";
+import { useMaterialUIController } from "Context/MaterialUIContextProvider";
 
 function PaymentMethod() {
   const [controller] = useMaterialUIController();
