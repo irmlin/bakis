@@ -47,7 +47,6 @@ class WorkerStreamReader:
 
     def __rest(self):
         if len(self.__caps) == 0:
-            # print('reader resting', os.getpid())
             time.sleep(1)
 
     def __read_caps(self) -> List[int]:
@@ -56,7 +55,6 @@ class WorkerStreamReader:
             if not self.__should_read_cap(source_id): continue
             self.__update_fps_info(source_id)
             success, frame = cap_info['cap'].read()
-
             if success:
                 self.__caps[source_id]['num_read'] += 1
             else:

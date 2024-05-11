@@ -27,7 +27,7 @@ from ..utilities import FileSize, generate_file_path, get_adjusted_timezone, del
 from ..database import SessionLocal
 
 
-class MediaService:
+class SourceService:
 
     # TODO add repository class
     def __init__(self):
@@ -98,7 +98,7 @@ class MediaService:
         return source
 
     def delete_source(self, db: Session, source_id: int):
-        db_source = self.get_source_by_id(db, source_id)
+        db_source = self.__get_source_by_id(db, source_id)
         if db_source is None:
             raise HTTPException(status_code=404, detail=f'Source with id {source_id} not found.')
         if db_source.status == SourceStatus.PROCESSING:
@@ -112,11 +112,13 @@ class MediaService:
         return {'detail': f'Source (id={source_id}) has been deleted.'}
 
     async def start_inference_task(self, db: Session, source_id: int):
-        db_source = self.get_source_by_id(db, source_id)
+        db_source = self.__get_source_by_id(db, source_id)
         if db_source is None:
             raise HTTPException(status_code=404, detail=f'Source with id {source_id} not found')
         if db_source.source_type == SourceType.VIDEO and not file_exists(db_source.file_path):
             raise HTTPException(status_code=404, detail=f'Source (id={source_id}) file not found')
+        if db_source.status == SourceStatus.PROCESSING:
+            raise HTTPException(status_code=404, detail=f'Source (id={source_id}) is already live!')
 
         if not self.__job_started:
             asyncio.create_task(self.__stream_to_client())
@@ -219,9 +221,9 @@ class MediaService:
             print('ENDED, ', source_id)
             if source_id not in self.__sources_to_terminate:
                 self.__temp_set_source_status_processed(source_id=source_id)
-            del self.__internal_state[source_id]
-            if source_id in self.__sources_to_terminate:
+            else:
                 self.__sources_to_terminate.remove(source_id)
+            del self.__internal_state[source_id]
             for ws in self.__connections[source_id]:
                 try:
                     await ws.send_json({'source_id': source_id, 'detail': 'Stream ended!'})
@@ -325,11 +327,11 @@ class MediaService:
             self.__internal_state[source_id]['ready'] = True
 
     async def terminate_live_stream(self, db: Session, source_id: int):
-        if source_id not in self.__connections.keys():
-            return {'detail': f'Stream for source (id={source_id} )has already ended prior to this request!'}
-        db_source = self.get_source_by_id(db, source_id)
+        db_source = self.__get_source_by_id(db, source_id)
         if db_source is None:
             raise HTTPException(status_code=404, detail=f'Source with id {source_id} not found!')
+        if source_id not in self.__connections.keys():
+            raise HTTPException(status_code=400, detail=f'Stream for source (id={source_id} )has alrrespeady ended prior to this request!')
         self.__worker_stream_reader.remove_source(source_id)
 
         self.__sources_to_terminate.append(source_id)
@@ -386,6 +388,12 @@ class MediaService:
         return db.query(Recipient).all()
 
     def get_source_by_id(self, db: Session, source_id: int):
+        db_source = db.query(Source).filter(Source.id == source_id).first()
+        if db_source is None:
+            raise HTTPException(status_code=404, detail=f'Source with id {source_id} not found!')
+        return db_source
+
+    def __get_source_by_id(self, db: Session, source_id: int):
         return db.query(Source).filter(Source.id == source_id).first()
 
     def get_all_sources(self, db: Session, skip: int = None, limit: int = None):
@@ -418,7 +426,7 @@ class MediaService:
 
     def __temp_set_source_status_processed(self, source_id: int):
         db_temp = SessionLocal()
-        db_source = self.get_source_by_id(db_temp, source_id)
+        db_source = self.__get_source_by_id(db_temp, source_id)
         db_source.status = SourceStatus.PROCESSED
         db_temp.commit()
         db_temp.close()

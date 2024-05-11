@@ -16,6 +16,8 @@ class SettingsService:
 
     def get_threshold(self, db: Session):
         threshold = db.query(Threshold).first()
+        if threshold is None:
+            raise HTTPException(status_code=404, detail=f'Server could not find threshold setting!')
         return threshold
 
     def update_threshold(self, db: Session, new_thr: float):
@@ -28,7 +30,6 @@ class SettingsService:
             raise HTTPException(status_code=404, detail=f'Server could not find threshold setting!')
         db_threshold.car_crash_threshold = new_thr
         db.commit()
-        # ThresholdSingleton().set(value=new_thr)
 
         return db_threshold
 

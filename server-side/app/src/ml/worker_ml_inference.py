@@ -1,6 +1,7 @@
 import multiprocessing
 import multiprocessing
 import queue
+import signal
 import sys
 import time
 import traceback
@@ -26,6 +27,7 @@ class WorkerMLInference:
         self.__transformer_onnx_path = 'app/src/ml/models/transformer_gpu.onnx'
         self.__feature_extractor_session = None
         self.__transformer_session = None
+        self.__process = None
 
     def add(self, data) -> None:
         try:
@@ -35,13 +37,21 @@ class WorkerMLInference:
             return
 
     def start(self) -> None:
-        Process(target=self.__do_work, name='PROCESS_worker_ml_inference').start()
+        self.__process = Process(target=self.__do_work, name='PROCESS_worker_ml_inference')
+        # self.__process.daemon = True
+        self.__process.start()
+
+    # def __terminate_process(self, sig, frame):
+    #     del self.__feature_extractor_session
+    #     del self.__transformer_session
+
 
     def __do_work(self) -> None:
         self.__feature_extractor_session = (
             ort.InferenceSession(self.__feature_extractor_onnx_path, providers=['CUDAExecutionProvider']))
         self.__transformer_session = (
             ort.InferenceSession(self.__transformer_onnx_path, providers=['CPUExecutionProvider']))
+        # signal.signal(signal.SIGINT, self.__terminate_process)
         while 1:
             try:
                 # TODO: timeout
