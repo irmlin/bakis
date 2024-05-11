@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from ..dependencies import get_db
-from ..schemas import UserCreate, UserRead, UserUpdate
+from ..schemas import UserCreate, UserRead
 from ..services import UserService
 
 
@@ -32,14 +32,3 @@ class UserController:
         @router.delete("/{user_id}")
         def delete_user(user_id: int, db: Session = Depends(get_db)):
             return self.user_service.delete_user(db, user_id=user_id)
-
-        @router.put("/{user_id}", response_model=UserRead)
-        def update_user(user_id: int, user_update: UserUpdate, db: Session = Depends(get_db)):
-            return self.user_service.update_user(db, user_id=user_id, user_update=user_update)
-
-
-        # @router.post("/users/{user_id}/items/", response_model=schemas.Item)
-        # def create_item_for_user(
-        #     user_id: int, item: schemas.ItemCreate, db: Session = Depends(get_db)
-        # ):
-        #     return crud.create_user_item(db=db, item=item, user_id=user_id)

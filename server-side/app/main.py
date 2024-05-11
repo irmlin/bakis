@@ -6,10 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
-from .src import root_router
-from .src.database import engine, SessionLocal
-from .src.models import Base, Threshold
-from .src.settings import HOST, PORT
+from src import root_router
+from src.database import engine, SessionLocal
+from src.models import Base, Threshold
+from src.settings import HOST, PORT
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
