@@ -25,7 +25,7 @@ export const StreamPlayer = (props) => {
   const wsRef = useRef(null);
   const {streamInfo, onStreamRemove} = props;
 
-  const [allowed] = useAuthorizationContext();
+  const [username, allowed] = useAuthorizationContext();
 
   useEffect(() => {
     if (!wsRef.current) {

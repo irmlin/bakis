@@ -9,3 +9,12 @@ export const login = async (data) => {
       return err.response;
   }
 };
+
+export const getUser = async () => {
+  try {
+    return await axiosInstance.get("/auth/user");
+  } catch (err) {
+      console.error("Failed to fetch user information!", err);
+      return err.response;
+  }
+};

@@ -21,6 +21,7 @@ import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 // @mui material components
 import CssBaseline from "@mui/material/CssBaseline";
 import Icon from "@mui/material/Icon";
+import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 
 // Material Dashboard 2 React components
 import MDBox from "Components/MDBox";
@@ -54,9 +55,11 @@ import camLogo from "Assets/images/cam.png"
 import brandDark from "Assets/images/logo-ct-dark.png";
 import {ThemeProvider} from "@mui/system";
 import MDSnackbar from "./Components/MDSnackbar";
+import {useAuthorizationContext} from "./Context/AuthorizationContextProvider";
 
 export default function App() {
   const [controller, dispatch] = useMaterialUIController();
+  const [username, allowed] = useAuthorizationContext();
   const {
     miniSidenav,
     direction,
@@ -214,6 +217,35 @@ export default function App() {
         // bgWhite
         dateTime={""}
       />
+      {
+        window.location.pathname !== "/authentication/sign-in" &&
+        <MDBox
+          py={1}
+          px={2}
+          mt={3}
+          mr={3}
+          borderRadius="lg"
+          position="fixed"
+          top={0}
+          right={0}
+          zIndex={3}
+          color={"white"}
+          sx={({
+            palette: { transparent: transparentColor, black, white, background },
+            functions: { rgba },
+          }) => ({
+            backgroundColor: rgba(black.main, 0.87),
+            backdropFilter: `saturate(200%) blur(30px)`,
+            // fontFamily: "Roboto, Helvetica, Arial, sans-serif",
+            fontSize: "14px",
+            display: "flex", // Set display to flex
+            alignItems: "center", // Center items vertically
+          })}
+        >
+          <AccountCircleOutlinedIcon fontSize={"medium"} sx={{mr: 1}}/>
+          <b>Logged in as: {username}</b>
+        </MDBox>
+      }
     </ThemeProvider>
   );
 }

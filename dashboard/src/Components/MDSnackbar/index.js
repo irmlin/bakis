@@ -163,7 +163,6 @@ MDSnackbar.propTypes = {
     "dark",
     "light",
   ]),
-  icon: PropTypes.node.isRequired,
   title: PropTypes.string.isRequired,
   dateTime: PropTypes.string.isRequired,
   content: PropTypes.node.isRequired,

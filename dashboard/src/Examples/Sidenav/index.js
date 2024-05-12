@@ -50,7 +50,7 @@ import {useAuthorizationContext} from "../../Context/AuthorizationContextProvide
 
 function Sidenav({ color, brand, brandName, routes, ...rest }) {
   const [controller, dispatch] = useMaterialUIController();
-  const [allowed] = useAuthorizationContext();
+  const [username, allowed] = useAuthorizationContext();
   const { miniSidenav, transparentSidenav, whiteSidenav, darkMode, sidenavColor } = controller;
   const location = useLocation();
   const collapseName = location.pathname.replace("/", "");
@@ -85,7 +85,7 @@ function Sidenav({ color, brand, brandName, routes, ...rest }) {
     return () => window.removeEventListener("resize", handleMiniSidenav);
   }, [dispatch, location]);
 
-  const routesByRole = routes.filter(r => (r.key !== 'settings' && r.key !== 'sign-in') || (r.key === 'settings' && allowed))
+  const routesByRole = routes.filter(r => r.key !== 'settings' || (r.key === 'settings' && allowed))
 
   // Render all the routes from the routes.js (All the visible items on the Sidenav)
   const renderRoutes = routesByRole.map(({ type, name, icon, title, noCollapse, key, href, route }) => {

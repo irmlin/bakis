@@ -60,7 +60,7 @@ function Sources() {
   const [dialogTitle, setDialogTitle] = useState("");
 
   const [controller, dispatch] = useMaterialUIController();
-  const [allowed] = useAuthorizationContext();
+  const [username, allowed] = useAuthorizationContext();
 
   const ITEM_HEIGHT = 48;
   const ITEM_PADDING_TOP = 8;

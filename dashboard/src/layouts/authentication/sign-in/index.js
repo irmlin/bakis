@@ -41,7 +41,7 @@ import BasicLayout from "layouts/authentication/components/BasicLayout";
 // Images
 import bgImage from "Assets/images/bg-sign-in-basic.jpeg";
 import {showNotification, useMaterialUIController} from "../../../Context/MaterialUIContextProvider";
-import {login} from "../../../Services/AuthService";
+import {getUser, login} from "../../../Services/AuthService";
 
 function Basic() {
   const [username, setUsername] = useState("");
@@ -72,9 +72,11 @@ function Basic() {
     const response = await login(formData);
     if (response) {
       if (response.status === 200) {
-        // parse response, save token in storage
         localStorage.setItem('token', response.data.access_token);
         localStorage.setItem('admin', true);
+
+        const username = await getCurrentUserUsername();
+        localStorage.setItem('username', username);
         window.location = "/dashboard";
       } else {
         showNotification(dispatch, "error", response.data.detail);
@@ -84,6 +86,20 @@ function Basic() {
     }
   }
 
+  const getCurrentUserUsername = async () => {
+    const response = await getUser();
+    if (response) {
+      if (response.status === 200) {
+        return response.data.username;
+      } else {
+        console.log("Authentication failed!");
+        return "guest";
+      }
+    } else {
+      console.log("No response from the server while fetching user information!")
+      return "guest"
+    }
+  }
 
   return (
     <BasicLayout image={bgImage}>
@@ -118,16 +134,16 @@ function Basic() {
             </MDBox>
             <MDBox mt={3} mb={1} textAlign="center">
               <MDTypography variant="button" color="text">
-                Don&apos;t have an account?{" "}
+                Not an administrator?{" "}
                 <MDTypography
                   component={Link}
-                  to="/authentication/sign-up"
+                  to="/dashboard"
                   variant="button"
                   color="info"
                   fontWeight="medium"
                   textGradient
                 >
-                  Sign up
+                  Guest login
                 </MDTypography>
               </MDTypography>
             </MDBox>

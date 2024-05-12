@@ -13,7 +13,7 @@ class UserCreate(UserBase):
 
 class UserRead(UserBase):
     id: int
-    created_at: datetime
+    username: str
 
     class ConfigDict:
         from_attributes = True

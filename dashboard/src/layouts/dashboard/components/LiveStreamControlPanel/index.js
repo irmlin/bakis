@@ -26,7 +26,7 @@ export default function LiveStreamControlPanel(props) {
 
     const { newSourceTrigger, onNewSourceTrigger } = props;
 
-    const [allowed] = useAuthorizationContext();
+    const [username, allowed] = useAuthorizationContext();
 
     const [sourceDialogOpen, setSourceDialogOpen] = useState(false);
     const [source, setSource] = useState({

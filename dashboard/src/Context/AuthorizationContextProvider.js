@@ -24,18 +24,30 @@ const AuthorizationContext = createContext();
 function AuthorizationContextProvider({ children }) {
 
   const [allowed, setAllowed] = useState(false);
+  const [username, setUsername] = useState("");
 
-  useEffect(() => {
-    const admin = localStorage.getItem("admin");
-    if(!admin)
+  const handleSetAllowed = (value) => {
+    if(!value)
       setAllowed(false);
-    else if (admin === "true")
+    else if (value === "true")
       setAllowed(true);
     else
       setAllowed(false);
+  }
+
+  const handleSetUsername = (value) => {
+    if(!value)
+      setUsername("guest");
+    else
+      setUsername(value);
+  }
+
+  useEffect(() => {
+    handleSetAllowed(localStorage.getItem("admin"));
+    handleSetUsername(localStorage.getItem("username"));
   }, [])
 
-  return <AuthorizationContext.Provider value={[allowed]}>{children}</AuthorizationContext.Provider>;
+  return <AuthorizationContext.Provider value={[username, allowed]}>{children}</AuthorizationContext.Provider>;
 }
 
 // Material Dashboard 2 React custom hook for using Context
@@ -55,3 +67,25 @@ export {
   useAuthorizationContext,
   AuthorizationContextProvider
 };
+
+
+
+
+  // useEffect(() => {
+  //   const fetchUser = async () => {
+  //     const response = await getUser();
+  //     if (response) {
+  //       if (response.status === 200) {
+  //         console.log(response);
+  //         setUsername(response.data.username);
+  //         setAllowed(true);
+  //       } else {
+  //         console.log("Session expired, please login!");
+  //       }
+  //     } else {
+  //       console.log("No response from the server while fetching user information!");
+  //     }
+  //   }
+  //
+  //   fetchUser().then(() => {})
+  // }, [])

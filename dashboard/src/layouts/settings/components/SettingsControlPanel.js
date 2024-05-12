@@ -170,6 +170,7 @@ export default function SettingsControlPanel() {
             {thresholdMenuItems}
           </Select>
           <MDButton
+            sx={{mt:1}}
             onClick={onSaveThreshold}
             variant="contained"
             color="info"
@@ -188,6 +189,7 @@ export default function SettingsControlPanel() {
             onChange={onEmailChange}
           />
           <MDButton
+            sx={{mt:1}}
             onClick={onAddEmail}
             variant="contained"
             color="info"
