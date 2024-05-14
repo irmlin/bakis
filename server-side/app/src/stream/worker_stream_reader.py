@@ -18,6 +18,7 @@ class WorkerStreamReader:
         self.__sources_lock = multiprocessing.Lock()
         self.__caps: Dict[int, Dict[str, Any]] = {}
         self.__on_done = on_done
+        self.__process = None
 
     def add_source(self, source_id, source_str) -> None:
         with self.__sources_lock:
@@ -29,7 +30,18 @@ class WorkerStreamReader:
                 del self.__sources[source_id]
 
     def start(self):
-        Process(target=self.__do_work, name='PROCESS_worker_stream_reader').start()
+        self.__process = Process(target=self.__do_work, name='PROCESS_worker_stream_reader')
+        self.__process.start()
+
+    def stop(self) -> None:
+        print('stopping')
+        if self.__process is not None:
+            print('stopping1')
+            if self.__process.is_alive():
+                print('stopping2')
+                self.__process.terminate()
+                self.__process.join()
+            self.__process = None
 
     def __do_work(self) -> None:
         while 1:

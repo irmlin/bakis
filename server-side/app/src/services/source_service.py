@@ -60,8 +60,16 @@ class SourceService:
                                                        batch_size=30)
         self.__worker_stream_reader = WorkerStreamReader(shared_sources_dict=self.__shared_sources_dict,
                                                          on_done=self.__worker_ml_inference.add)
+        # self.__worker_stream_reader.start()
+        # self.__worker_ml_inference.start()
+
+    def start_workers(self):
         self.__worker_stream_reader.start()
         self.__worker_ml_inference.start()
+
+    def stop_workers(self):
+        self.__worker_stream_reader.stop()
+        self.__worker_ml_inference.stop()
 
     def upload_source(self, db: Session, source_create: SourceCreate, video_file: UploadFile, stream_url: str):
         if source_create.source_type == SourceType.STREAM:

@@ -1,19 +1,25 @@
+import multiprocessing
 import os
+import queue
 import shutil
 from datetime import datetime
+from multiprocessing import Queue
 
 import pytest
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
+from passlib.context import CryptContext
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.main import app
 from app.src.database import Base
 from app.src.dependencies import get_db
-from app.src.models import Accident, Source, Threshold, Recipient
+from app.src.models import Accident, Source, Threshold, Recipient, User
 from app.src.models.enums import AccidentType, SourceStatus
 from app.src.models.enums import SourceType
+from app.src.schemas import UserCreate
+from app.src.stream import WorkerStreamReader
 from app.src.utilities import delete_file
 
 load_dotenv()
@@ -29,6 +35,9 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 # Create tables in the database
 Base.metadata.create_all(bind=engine)
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+manager = multiprocessing.Manager()
 
 @pytest.fixture(scope="function")
 def db_session():
@@ -72,6 +81,26 @@ def serve_media_files():
             shutil.copy(os.path.join(backup_folder, media_file), static_folder)
 
     yield
+
+
+@pytest.fixture(autouse=True)
+def authenticated_user_data(test_client, db_session, user_data):
+    response = test_client.post('/api/auth/login', data={'username': user_data.username,
+                                                         'password': user_data.password})
+    response_json = response.json()
+    return user_data, response_json['access_token']
+
+
+@pytest.fixture(autouse=True)
+def user_data(db_session):
+    username = password = 'testuser'
+    password_hash = pwd_context.hash(password)
+    user = User(username=username, password_hash=password_hash)
+    db_session.add(user)
+    db_session.commit()
+
+    return UserCreate(username=username, password=password)
+
 
 
 @pytest.fixture()
@@ -137,13 +166,14 @@ def recipients_data():
 
 
 @pytest.fixture()
-def uploaded_video_source(test_client, db_session):
+def uploaded_video_source(test_client, db_session, authenticated_user_data):
     video_file_name = 'test/static/video1.mp4'
     with open(video_file_name, 'rb') as f:
         response = test_client.post('/api/media', data={'title': 'VideoSource',
                                                         'description': 'VideoSource description',
                                                         'source_type': SourceType.VIDEO.value},
-                                    files={'video_file': (video_file_name, f, 'video/mp4')})
+                                    files={'video_file': (video_file_name, f, 'video/mp4')},
+                                    headers={'Authorization': 'Bearer ' + authenticated_user_data[1]})
     source_id = response.json()['id']
     source = db_session.query(Source).first()
     yield source
@@ -155,26 +185,29 @@ def uploaded_video_source(test_client, db_session):
 
 
 @pytest.fixture()
-def uploaded_stream_source(test_client, db_session):
+def uploaded_stream_source(test_client, db_session, authenticated_user_data):
     stream_url = 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
     response = test_client.post('/api/media', data={'title': 'StreamSource',
                                                     'description': 'StreamSource description',
                                                     'source_type': SourceType.STREAM.value,
-                                                    'stream_url': stream_url})
+                                                    'stream_url': stream_url},
+                                headers={'Authorization': 'Bearer ' + authenticated_user_data[1]})
     return db_session.query(Source).first()
 
 
 @pytest.fixture()
-def uploaded_video_source_status_processing(test_client, db_session):
+def uploaded_video_source_status_processing(test_client, db_session, authenticated_user_data):
     video_file_name = 'test/static/video1.mp4'
     with open(video_file_name, 'rb') as f:
         response = test_client.post('/api/media', data={'title': 'VideoSource',
                                                         'description': 'VideoSource description',
                                                         'source_type': SourceType.VIDEO.value},
-                                    files={'video_file': (video_file_name, f, 'video/mp4')})
+                                    files={'video_file': (video_file_name, f, 'video/mp4')},
+                                    headers={'Authorization': 'Bearer ' + authenticated_user_data[1]})
     source_json = response.json()
     source_id = source_json['id']
-    response = test_client.get(f'/api/media/source/inference/{source_id}')
+    response = test_client.get(f'/api/media/source/inference/{source_id}',
+                               headers={'Authorization': 'Bearer ' + authenticated_user_data[1]})
     yield source_json
 
     # Cleanup
@@ -192,13 +225,14 @@ def uploaded_stream_source_status_processing(test_client, db_session):
     return source_json
 
 @pytest.fixture()
-def uploaded_video_source_with_accidents(test_client, db_session, accidents_data):
+def uploaded_video_source_with_accidents(test_client, db_session, accidents_data, authenticated_user_data):
     video_file_name = 'test/static/video1.mp4'
     with open(video_file_name, 'rb') as f:
         response = test_client.post('/api/media', data={'title': 'VideoSource',
                                                         'description': 'VideoSource description',
                                                         'source_type': SourceType.VIDEO.value},
-                                    files={'video_file': (video_file_name, f, 'video/mp4')})
+                                    files={'video_file': (video_file_name, f, 'video/mp4')},
+                                    headers={'Authorization': 'Bearer ' + authenticated_user_data[1]})
     source_id = response.json()['id']
     for a in accidents_data:
         a.source_id = source_id
@@ -207,12 +241,13 @@ def uploaded_video_source_with_accidents(test_client, db_session, accidents_data
     return response.json()
 
 @pytest.fixture()
-def uploaded_stream_source_with_accidents(test_client, db_session, accidents_data):
+def uploaded_stream_source_with_accidents(test_client, db_session, accidents_data, authenticated_user_data):
     stream_url = 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
     response = test_client.post('/api/media', data={'title': 'StreamSource',
                                                     'description': 'StreamSource description',
                                                     'source_type': SourceType.STREAM.value,
-                                                    'stream_url': stream_url})
+                                                    'stream_url': stream_url},
+                                headers={'Authorization': 'Bearer ' + authenticated_user_data[1]})
     source_id = response.json()['id']
     for a in accidents_data:
         a.source_id = source_id
@@ -220,3 +255,27 @@ def uploaded_stream_source_with_accidents(test_client, db_session, accidents_dat
     db_session.commit()
     return response.json()
 
+
+@pytest.fixture()
+def mocked_stream_reader():
+    print('starting')
+    output_q = Queue()
+    shared_sources_dict = manager.dict()
+
+    def on_done(data):
+        try:
+            output_q.put(data, block=False)
+        except queue.Full:
+            print(f'Output queue is full! Element not added.')
+            return
+
+    stream_reader = WorkerStreamReader(shared_sources_dict=shared_sources_dict,
+                                       on_done=on_done)
+
+    stream_reader.start()
+    print('yielding')
+    yield output_q, stream_reader
+
+    print('cleanup')
+    stream_reader.stop()
+    print('done')

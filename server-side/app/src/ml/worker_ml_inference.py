@@ -38,13 +38,14 @@ class WorkerMLInference:
 
     def start(self) -> None:
         self.__process = Process(target=self.__do_work, name='PROCESS_worker_ml_inference')
-        # self.__process.daemon = True
         self.__process.start()
 
-    # def __terminate_process(self, sig, frame):
-    #     del self.__feature_extractor_session
-    #     del self.__transformer_session
-
+    def stop(self) -> None:
+        if self.__process is not None:
+            if self.__process.is_alive():
+                self.__process.terminate()
+                self.__process.join()
+            self.__process = None
 
     def __do_work(self) -> None:
         self.__feature_extractor_session = (
