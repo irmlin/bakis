@@ -20,7 +20,7 @@ class SettingsController:
 
     def __init_routes(self, router):
         @router.get("/threshold", response_model=CarCrashThresholdRead)
-        def get_threshold(current_user: Annotated[str, Depends(get_current_user)], db: Session = Depends(get_db)):
+        def get_threshold(db: Session = Depends(get_db)):
             return self.settings_service.get_threshold(db=db)
 
         @router.put("/threshold", response_model=CarCrashThresholdUpdate)

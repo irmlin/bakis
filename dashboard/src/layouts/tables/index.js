@@ -110,7 +110,7 @@ function Accidents() {
           setActiveAccidentId(null);
         } else {
             console.error('Error on deleting accident: ', response);
-            showNotification(dispatch, "error", "An error occurred while removing accident data!");
+            showNotification(dispatch, "error", response.response.data.detail);
         }
     } else {
         console.error('No response from the server while deleting accident!');

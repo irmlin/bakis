@@ -3,6 +3,7 @@ import PropTypes from "prop-types";
 
 // react-chartjs-2 components
 import { Line } from "react-chartjs-2";
+import annotationPlugin from 'chartjs-plugin-annotation';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -12,7 +13,7 @@ import {
     Title,
     Tooltip,
     Legend,
-    Filler,
+    Filler
 } from "chart.js";
 
 // @mui material components
@@ -34,10 +35,11 @@ ChartJS.register(
     Title,
     Tooltip,
     Legend,
-    Filler
+    Filler,
+    annotationPlugin
 );
 
-function StreamStatusChart({ color, title, description, modelScores, chart, size }) {
+function StreamStatusChart({ color, title, description, modelScores, chart, size, threshold }) {
 
     color ??= "info";
     description ??= "";
@@ -49,7 +51,7 @@ function StreamStatusChart({ color, title, description, modelScores, chart, size
         },
     };
 
-    const { initialData, options } = configs();
+    const { initialData, options } = configs(threshold);
     const [data, setData] = useState(initialData);
 
     useEffect(() => {
@@ -63,18 +65,18 @@ function StreamStatusChart({ color, title, description, modelScores, chart, size
         }
 
         const crash_datapoints = datasets[0].data;
-        const nocrash_datapoints = datasets[1].data;
+        // const nocrash_datapoints = datasets[1].data;
 
         if (crash_datapoints.length === size) {
             crash_datapoints.shift();
         }
 
-        if (nocrash_datapoints.length === size) {
-            nocrash_datapoints.shift();
-        }
+        // if (nocrash_datapoints.length === size) {
+            // nocrash_datapoints.shift();
+        // }
 
         crash_datapoints.push(modelScores[0]);
-        nocrash_datapoints.push(modelScores[1]);
+        // nocrash_datapoints.push(modelScores[1]);
 
         setData({
             ...labels,

@@ -15,6 +15,7 @@ from sqlalchemy.orm import sessionmaker
 from app.main import app
 from app.src.database import Base
 from app.src.dependencies import get_db
+from app.src.ml import WorkerMLInference
 from app.src.models import Accident, Source, Threshold, Recipient, User
 from app.src.models.enums import AccidentType, SourceStatus
 from app.src.models.enums import SourceType
@@ -214,14 +215,15 @@ def uploaded_video_source_status_processing(test_client, db_session, authenticat
     # test_client.put(f'/api/media/source/stream/{source_id}')
 
 @pytest.fixture()
-def uploaded_stream_source_status_processing(test_client, db_session):
+def uploaded_stream_source_status_processing(test_client, db_session, authenticated_user_data):
     stream_url = 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
     response = test_client.post('/api/media', data={'title': 'StreamSource',
                                                     'description': 'StreamSource description',
                                                     'source_type': SourceType.STREAM.value,
-                                                    'stream_url': stream_url})
+                                                    'stream_url': stream_url},
+                                headers={'Authorization': 'Bearer ' + authenticated_user_data[1]})
     source_json = response.json()
-    response = test_client.get(f'/api/media/source/inference/{source_json["id"]}')
+    response = test_client.get(f'/api/media/source/inference/{source_json["id"]}', headers={'Authorization': 'Bearer ' + authenticated_user_data[1]})
     return source_json
 
 @pytest.fixture()
@@ -258,8 +260,7 @@ def uploaded_stream_source_with_accidents(test_client, db_session, accidents_dat
 
 @pytest.fixture()
 def mocked_stream_reader():
-    print('starting')
-    output_q = Queue()
+    output_q = Queue(maxsize=100)
     shared_sources_dict = manager.dict()
 
     def on_done(data):
@@ -273,9 +274,31 @@ def mocked_stream_reader():
                                        on_done=on_done)
 
     stream_reader.start()
-    print('yielding')
     yield output_q, stream_reader
 
-    print('cleanup')
     stream_reader.stop()
-    print('done')
+
+
+@pytest.fixture()
+def video_source_to_read():
+    return 1, 'test/static/video1.mp4'
+
+
+@pytest.fixture()
+def mocked_ml_inference():
+    input_q = Queue(maxsize=100)
+    output_q = Queue(maxsize=100)
+    batch_size = 30
+
+    def on_done(data):
+        try:
+            output_q.put(data, block=False)
+        except queue.Full:
+            print(f'Output queue is full! Element not added.')
+            return
+
+    ml = WorkerMLInference(on_done=on_done, batch_size=batch_size)
+    ml.start()
+    yield batch_size, input_q, output_q, ml
+
+    ml.stop()

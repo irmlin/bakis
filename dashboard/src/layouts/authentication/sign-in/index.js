@@ -79,7 +79,7 @@ function Basic() {
         localStorage.setItem('username', username);
         window.location = "/dashboard";
       } else {
-        showNotification(dispatch, "error", response.data.detail);
+        showNotification(dispatch, "error", response.response.data.detail);
       }
     } else {
       showNotification(dispatch, "error", "No response from the server while logging in!")

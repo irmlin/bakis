@@ -59,7 +59,7 @@ function MDSnackbar({ color, icon, title, dateTime, content, close, bgWhite, ...
   return (
     <Snackbar
       TransitionComponent={Fade}
-      autoHideDuration={6000}
+      autoHideDuration={10000}
       anchorOrigin={{
         vertical: "bottom",
         horizontal: "right",
@@ -92,7 +92,7 @@ function MDSnackbar({ color, icon, title, dateTime, content, close, bgWhite, ...
           p={1.5}
         >
           <MDBox display="flex" alignItems="center" lineHeight={0}>
-            <MDSnackbarIconRoot fontSize="small" ownerState={{ color, bgWhite }}>
+            <MDSnackbarIconRoot fontSize="medium" ownerState={{ color, bgWhite }}>
               {icon}
             </MDSnackbarIconRoot>
             <MDTypography
@@ -100,6 +100,7 @@ function MDSnackbar({ color, icon, title, dateTime, content, close, bgWhite, ...
               fontWeight="medium"
               color={titleColor}
               textGradient={bgWhite}
+              sx={{fontSize: "medium"}}
             >
               {title}
             </MDTypography>
@@ -126,7 +127,7 @@ function MDSnackbar({ color, icon, title, dateTime, content, close, bgWhite, ...
         <MDBox
           p={1.5}
           sx={{
-            fontSize: ({ typography: { size } }) => size.sm,
+            fontSize: ({ typography: { size } }) => size.md,
             color: ({ palette: { white, text } }) => {
               let colorValue = bgWhite || color === "light" ? text.main : white.main;
 
@@ -138,7 +139,7 @@ function MDSnackbar({ color, icon, title, dateTime, content, close, bgWhite, ...
             },
           }}
         >
-          {content}
+          <b>{content}</b>
         </MDBox>
       </MDBox>
     </Snackbar>

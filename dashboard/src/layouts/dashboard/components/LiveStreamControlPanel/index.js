@@ -82,7 +82,7 @@ export default function LiveStreamControlPanel(props) {
             return false;
         }
         else if (source.type === sourceTypes.STREAM && !source.streamUrl) {
-            showNotification(dispatch, "error", "Stream URL field is required");
+            showNotification(dispatch, "error", "Stream URL field is required!");
             return false;
         }
         return true;
@@ -129,7 +129,7 @@ export default function LiveStreamControlPanel(props) {
                 await startStreamInServer(responseUpload.data.id);
             } else {
                 console.error('Error uploading video:', responseUpload);
-                showNotification(dispatch, "error", "An error occurred while uploading the video source!")
+                showNotification(dispatch, "error", responseUpload.response.data.detail)
             }
         } else {
             console.error('No response from the server while uploading video!');

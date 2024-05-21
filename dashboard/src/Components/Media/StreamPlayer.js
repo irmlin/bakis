@@ -23,7 +23,7 @@ export const StreamPlayer = (props) => {
   let firstFrameReceived = false;
 
   const wsRef = useRef(null);
-  const {streamInfo, onStreamRemove} = props;
+  const {streamInfo, onStreamRemove, threshold} = props;
 
   const [username, allowed] = useAuthorizationContext();
 
@@ -113,6 +113,7 @@ export const StreamPlayer = (props) => {
                 description="Last Campaign Performance"
                 modelScores={modelScores}
                 size={30}
+                threshold={threshold}
               />
               <div style={{paddingTop: 7, display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
                 <MDBox>

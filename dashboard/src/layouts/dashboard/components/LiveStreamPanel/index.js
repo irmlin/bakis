@@ -3,12 +3,14 @@ import {getLiveStreams, removeLiveStream} from "Services/MediaService";
 import {StreamPlayer} from "Components/Media/StreamPlayer";
 import Grid from "@mui/material/Grid";
 import {showNotification, useMaterialUIController} from "../../../../Context/MaterialUIContextProvider";
+import {getSensitivityThreshold} from "../../../../Services/SettingsService";
 
 
 export default function LiveStreamPanel(props) {
 
     const { newSourceTrigger } = props;
     const [liveStreams, setLiveStreams] = useState([]);
+    const [threshold, setThreshold] = useState(1.0);
 
     const [controller, dispatch] = useMaterialUIController();
 
@@ -61,8 +63,26 @@ export default function LiveStreamPanel(props) {
             }
         }
 
+        const fetchThreshold = async () => {
+          const response = await getSensitivityThreshold();
+          if (response) {
+              if (response.status === 200) {
+                  setThreshold(response.data.car_crash_threshold.toFixed(2));
+              } else {
+                  console.error('Error on fetching threshold: ', response);
+                  showNotification(dispatch, "error", "An error occurred while fetching sensitivity threshold!")
+              }
+          } else {
+              console.error('No response from the server while fetching threshold!');
+              showNotification(dispatch, "error", "No response from the server while fetching sensitivity threshold!")
+          }
+        }
+
+        fetchThreshold().then(r => {});
         fetchLiveVideos().then(r => {});
-        const interval = setInterval(() => fetchLiveVideos(), 10000);
+        const interval = setInterval(() => {
+            fetchThreshold().then(r => {}); fetchLiveVideos().then(r => {});
+            }, 10000);
         return () => {
           clearInterval(interval);
         }
@@ -77,6 +97,7 @@ export default function LiveStreamPanel(props) {
                           <div>
                               <StreamPlayer streamInfo={stream}
                                             onStreamRemove={() => handleRemoveStream(stream.id)}
+                                            threshold={threshold}
                               />
                           </div>
                       </Grid>

@@ -26,7 +26,8 @@ axiosInstance.interceptors.response.use(response => {
   if (error.response.status === 401) {
    localStorage.setItem('admin', false);
    localStorage.setItem('username', 'guest');
-   window.location = "/authentication/sign-in";
+   if (window.location.pathname !== "/authentication/sign-in")
+      window.location = "/authentication/sign-in";
    console.log(error.response.detail);
   }
   return error;

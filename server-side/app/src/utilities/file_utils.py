@@ -3,9 +3,9 @@ import uuid
 
 
 class FileSize:
-    GB = 1024*1024*1024*1024
-    MB = 1024*1024*1024
-    KB = 1024*1024
+    GB = 1024*1024*1024
+    MB = 1024*1024
+    KB = 1024
 
     @staticmethod
     def get_gb(b: int):

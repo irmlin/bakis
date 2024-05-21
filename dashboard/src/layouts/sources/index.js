@@ -154,7 +154,7 @@ function Sources() {
           setActiveSourceId(null);
         } else {
             console.error('Error on deleting source: ', response);
-            showNotification(dispatch, "error", "An error occurred while deleting source!")
+            showNotification(dispatch, "error", response.response.data.detail)
         }
     } else {
         console.error('No response from the server while deleting source!');

@@ -27,7 +27,7 @@ export default function Dashboard() {
 
   return (
     <DashboardLayout>
-      <DashboardNavbar />
+      <DashboardNavbar/>
       <LiveStreamControlPanel
         newSourceTrigger={newSourceTrigger}
         onNewSourceTrigger={onNewSourceTrigger}

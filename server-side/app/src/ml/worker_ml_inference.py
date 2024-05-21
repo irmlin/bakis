@@ -46,6 +46,8 @@ class WorkerMLInference:
                 self.__process.terminate()
                 self.__process.join()
             self.__process = None
+        # del self.__feature_extractor_session
+        # del self.__transformer_session
 
     def __do_work(self) -> None:
         self.__feature_extractor_session = (

@@ -44,7 +44,7 @@ class SourceService:
         self.__internal_state: Dict[int, Dict[str, Any]] = {}
         self.__sources_to_terminate = []
         self.__frames_buffer_size = 30
-        self.__alarm_timeout = 10 * 60
+        self.__alarm_timeout = 3
         self.__video_cache_seconds = 5
         self.__accident_class_id = 0
         self.__alarm_score_thr = 0.8
@@ -60,8 +60,8 @@ class SourceService:
                                                        batch_size=30)
         self.__worker_stream_reader = WorkerStreamReader(shared_sources_dict=self.__shared_sources_dict,
                                                          on_done=self.__worker_ml_inference.add)
-        # self.__worker_stream_reader.start()
-        # self.__worker_ml_inference.start()
+        self.__worker_stream_reader.start()
+        self.__worker_ml_inference.start()
 
     def start_workers(self):
         self.__worker_stream_reader.start()
@@ -80,6 +80,7 @@ class SourceService:
             if video_file is None:
                 raise HTTPException(status_code=400, detail=f'No video file provided!')
             video_size_bytes = self.get_file_size(file=video_file)
+            print(video_size_bytes, self.file_size_limit_bytes)
             if video_size_bytes > self.file_size_limit_bytes:
                 raise HTTPException(status_code=400,
                                     detail=f'File size should not exceed'
@@ -90,10 +91,13 @@ class SourceService:
                 shutil.copyfileobj(video_file.file, buffer)
             source_path = file_path
 
-        video_cap = cv2.VideoCapture(source_path)
-        fps = video_cap.get(cv2.CAP_PROP_FPS)
-        width = video_cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-        height = video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        try:
+            video_cap = cv2.VideoCapture(source_path)
+            fps = video_cap.get(cv2.CAP_PROP_FPS)
+            width = video_cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+            height = video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f'Could not read video file, file must be .mp4 format!')
         source = Source(title=source_create.title, description=source_create.description,
                         file_path=source_path if source_create.source_type == SourceType.VIDEO else None,
                         stream_url=source_path if source_create.source_type == SourceType.STREAM else None,
@@ -110,8 +114,7 @@ class SourceService:
         if db_source is None:
             raise HTTPException(status_code=404, detail=f'Source with id {source_id} not found.')
         if db_source.status == SourceStatus.PROCESSING:
-            raise HTTPException(status_code=409, detail=f'Source with id {source_id} is currently being streamed,'
-                                                        f' stop streaming first!')
+            raise HTTPException(status_code=409, detail=f'Source currently being streamed, terminate the stream first!')
         if db_source.source_type == SourceType.VIDEO:
             delete_file(db_source.file_path)
         self.__delete_source_accidents(db=db, source_id=source_id)

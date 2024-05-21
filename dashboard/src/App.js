@@ -13,22 +13,22 @@ Coded by www.creative-tim.com
 * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 */
 
-import { useState, useEffect, useMemo } from "react";
+import {useEffect, useMemo, useState} from "react";
 
 // react-router components
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import {Navigate, Route, Routes, useLocation} from "react-router-dom";
 
 // @mui material components
 import CssBaseline from "@mui/material/CssBaseline";
 import Icon from "@mui/material/Icon";
-import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
+import AccountCircleIcon from '@mui/icons-material/AccountCircleOutlined';
+import LogoutIcon from '@mui/icons-material/Logout';
 
 // Material Dashboard 2 React components
 import MDBox from "Components/MDBox";
 
 // Material Dashboard 2 React example components
 import Sidenav from "Examples/Sidenav";
-import Configurator from "Examples/Configurator";
 
 // Material Dashboard 2 React themes
 import theme from "Assets/theme";
@@ -40,22 +40,30 @@ import themeDarkRTL from "Assets/theme-dark/theme-rtl";
 
 // RTL plugins
 import rtlPlugin from "stylis-plugin-rtl";
-import { CacheProvider } from "@emotion/react";
+import {CacheProvider} from "@emotion/react";
 import createCache from "@emotion/cache";
 
 // Material Dashboard 2 React routes
 import routes from "routes";
 
 // Material Dashboard 2 React contexts
-import { useMaterialUIController, setMiniSidenav, setOpenConfigurator, setNotificationOpen } from "Context/MaterialUIContextProvider";
+import {
+  setMiniSidenav,
+  setNotificationOpen,
+  setOpenConfigurator,
+  useMaterialUIController
+} from "Context/MaterialUIContextProvider";
 
 // Images
 import brandWhite from "Assets/images/logo-ct.png";
-import camLogo from "Assets/images/cam.png"
 import brandDark from "Assets/images/logo-ct-dark.png";
 import {ThemeProvider} from "@mui/system";
 import MDSnackbar from "./Components/MDSnackbar";
 import {useAuthorizationContext} from "./Context/AuthorizationContextProvider";
+import IconButton from "@mui/material/IconButton";
+import Menu from "@mui/material/Menu";
+import NotificationItem from "./Examples/Items/NotificationItem";
+import {navbarIconButton} from "./Examples/Navbars/DashboardNavbar/styles";
 
 export default function App() {
   const [controller, dispatch] = useMaterialUIController();
@@ -135,6 +143,13 @@ export default function App() {
       return null;
     });
 
+  const onLogoutButtonClick = () => {
+    localStorage.setItem('token', '');
+    localStorage.setItem('admin', false);
+    localStorage.setItem('username', 'guest');
+    window.location = "/authentication/sign-in";
+  }
+
   const configsButton = (
     <MDBox
       display="flex"
@@ -158,6 +173,34 @@ export default function App() {
         settings
       </Icon>
     </MDBox>
+  );
+
+  const [openMenu, setOpenMenu] = useState(false);
+  const handleOpenMenu = (event) => setOpenMenu(event.currentTarget);
+  const handleCloseMenu = () => setOpenMenu(false);
+
+  const iconsStyle = ({ palette: { dark, white, text }, functions: { rgba } }) => ({
+    color: () => {
+      return white.main;
+    },
+  });
+
+  const renderMenu = () => (
+    <Menu
+      anchorEl={openMenu}
+      anchorReference={null}
+      anchorOrigin={{
+        vertical: "bottom",
+        horizontal: "left",
+      }}
+      open={Boolean(openMenu)}
+      onClose={handleCloseMenu}
+      sx={{ mt: 2, p: 0}}
+    >
+      <IconButton onClick={onLogoutButtonClick} sx={{ p: 0, m: 0, height: 20}}>
+        <NotificationItem icon={<LogoutIcon></LogoutIcon>} title={"Logout (" + username + ")"} />
+      </IconButton>
+    </Menu>
   );
 
   return direction === "rtl" ? (
@@ -230,20 +273,20 @@ export default function App() {
           right={0}
           zIndex={3}
           color={"white"}
-          sx={({
-            palette: { transparent: transparentColor, black, white, background },
-            functions: { rgba },
-          }) => ({
-            backgroundColor: rgba(black.main, 0.87),
-            backdropFilter: `saturate(200%) blur(30px)`,
-            // fontFamily: "Roboto, Helvetica, Arial, sans-serif",
-            fontSize: "14px",
-            display: "flex", // Set display to flex
-            alignItems: "center", // Center items vertically
-          })}
         >
-          <AccountCircleOutlinedIcon fontSize={"medium"} sx={{mr: 1}}/>
-          <b>Logged in as: {username}</b>
+          <IconButton
+            size="small"
+            disableRipple
+            color="inherit"
+            sx={navbarIconButton}
+            aria-controls="notification-menu"
+            aria-haspopup="true"
+            variant="contained"
+            onClick={handleOpenMenu}
+          >
+            <AccountCircleIcon color={"secondary"} fontSize={"large"} sx={{mr: 1}}/>
+          </IconButton>
+          {renderMenu()}
         </MDBox>
       }
     </ThemeProvider>

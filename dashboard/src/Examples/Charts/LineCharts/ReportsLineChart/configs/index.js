@@ -13,37 +13,32 @@ Coded by www.creative-tim.com
 * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 */
 
-function configs() {
+function configs(thresholdYValue) {
   return {
     initialData: {
       labels: [],
       datasets: [
         {
-          label: 'Crash',
+          label: "Crash probability",
           tension: 0,
           pointRadius: 2,
-          pointBorderColor: "transparent",
-          pointBackgroundColor: "rgba(255, 50, 50, .8)",
-          borderColor: "rgba(255, 50, 50, .8)",
+          borderColor: "transparent",
           borderWidth: 2,
           backgroundColor: "transparent",
           fill: true,
           data: [],
           maxBarThickness: 6,
-        },
-        {
-          label: 'No Crash',
-          tension: 0,
-          pointRadius: 2,
-          pointBorderColor: "transparent",
-          pointBackgroundColor: "rgba(50, 255, 50, .8)",
-          borderColor: "rgba(50, 255, 50, .8)",
-          borderWidth: 2,
-          backgroundColor: "transparent",
-          fill: true,
-          data: [],
-          maxBarThickness: 6,
-        },
+          pointBackgroundColor: (ctx) => {
+            const value = ctx.raw;
+            return value < thresholdYValue ? 'green' : 'red';
+          },
+          segment: {
+            borderColor: (ctx) => {
+              const value = ctx.p0.parsed.y;
+              return value < thresholdYValue ? 'green' : 'red';
+            },
+          },
+        }
       ],
     },
     options: {
@@ -54,13 +49,43 @@ function configs() {
           display: true,
           position: 'top',
           labels: {
+            usePointStyle: true,
             boxWidth: 6,
             boxHeight: 6,
-            color: 'white',
-            usePointStyle: true,
-            pointStyle: 'circle'
+            generateLabels: function(chart) {
+              return [
+                {
+                  text: 'Stable traffic',
+                  fillStyle: 'green',
+                  strokeStyle: 'green',
+                  lineWidth: 2,
+                  pointStyle: 'circle',
+                  fontColor: 'white',
+                },
+                {
+                  text: 'Car crash',
+                  fillStyle: 'red',
+                  strokeStyle: 'red',
+                  lineWidth: 2,
+                  pointStyle: 'circle',
+                  fontColor: 'white',
+                },
+              ];
+            },
           }
         },
+      annotation: {
+        annotations: {
+          line1: {
+            type: 'line',
+            yMin: thresholdYValue,
+            yMax: thresholdYValue,
+            borderColor: 'white',
+            borderWidth: 1,
+            borderDash: [10, 5],
+          },
+        },
+      },
       },
       interaction: {
         intersect: false,
@@ -88,6 +113,8 @@ function configs() {
               lineHeight: 2,
             },
           },
+          min: 0,  // Set minimum value for y-axis
+          max: 1   // Set maximum value for y-axis
         },
         x: {
           grid: {
