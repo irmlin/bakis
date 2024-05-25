@@ -26,6 +26,7 @@ export default function LiveStreamControlPanel(props) {
 
     const { newSourceTrigger, onNewSourceTrigger } = props;
 
+    const [loading, setLoading] = useState(false);
     const [username, allowed] = useAuthorizationContext();
 
     const [sourceDialogOpen, setSourceDialogOpen] = useState(false);
@@ -122,6 +123,7 @@ export default function LiveStreamControlPanel(props) {
         else
             formData.append('stream_url', source.streamUrl);
         console.log(source.streamUrl)
+        showNotification(dispatch, "info", "Uploading...");
         const responseUpload = await uploadSource(formData);
         if (responseUpload) {
             if (responseUpload.status === 200) {
