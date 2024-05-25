@@ -158,8 +158,11 @@ class SourceService:
         return {'detail': f'Source (id={source_id}) is being streamed.'}
 
     async def accept_connection(self, source_id: int, websocket: WebSocket):
-        if source_id not in self.__connections:
-            return {'detail': f'Stream for source {source_id} is no longer available!.'}
+        if (source_id not in self.__connections or
+                source_id in self.__sources_to_terminate):
+            await websocket.close()
+            return
+
         await websocket.accept()
         self.__connections[source_id].append(websocket)
         try:
@@ -342,7 +345,8 @@ class SourceService:
         if db_source is None:
             raise HTTPException(status_code=404, detail=f'Source with id {source_id} not found!')
         if source_id not in self.__connections.keys():
-            raise HTTPException(status_code=400, detail=f'Stream for source (id={source_id} ) has already ended prior to this request!')
+            raise HTTPException(status_code=400,
+                                detail=f'Stream for source (id={source_id} ) has already ended prior to this request!')
         self.__worker_stream_reader.remove_source(source_id)
 
         self.__sources_to_terminate.append(source_id)
@@ -376,7 +380,7 @@ class SourceService:
         subject = self.__get_email_subject(accident=accident)
         body = self.__get_email_body(accident=accident)
         db_temp.close()
-        # TODO: may crash here, ass recipients is not associated with session
+        # TODO: may crash here, as recipients is not associated with session
         await self.__email_manager.send(recipients=recipients, subject=subject, body=body)
 
     def __get_email_body(self, accident: Accident) -> str:
@@ -433,7 +437,9 @@ class SourceService:
         return result
 
     def get_live_sources(self, db: Session):
-        return db.query(Source).filter(Source.status == SourceStatus.PROCESSING).all()
+        return db.query(Source).filter(Source.status == SourceStatus.PROCESSING and
+                                       Source.id not in self.__sources_to_terminate).all()
+
 
     def __temp_set_source_status_processed(self, source_id: int):
         db_temp = SessionLocal()
@@ -472,4 +478,3 @@ class SourceService:
             delete_file(accident.image_path)
             db.delete(accident)
         db.commit()
-

@@ -24,13 +24,7 @@ export default function LiveStreamPanel(props) {
         if (response) {
             if (response.status === 200 || response.response.status === 400) {
                 setLiveStreams(prevStreams => {
-                    const indexToRemove = prevStreams.findIndex(stream => stream && stream.id === streamId);
-                    if (indexToRemove !== -1) {
-                      const updatedStreams = [...prevStreams];
-                      updatedStreams[indexToRemove] = null;
-                      return updatedStreams;
-                    }
-                    return prevStreams;
+                    return prevStreams.filter(stream => stream && stream.id !== streamId);
                 });
                 showNotification(dispatch, "success", "Video stream has been removed!")
             } else {
@@ -48,11 +42,13 @@ export default function LiveStreamPanel(props) {
             const response = await getLiveStreams();
             if (response) {
                 if (response.status === 200) {
-                    const newStreams = response.data.filter(obj => obj && !isObjectInArray(liveStreams, obj.id));
-                    for (const stream of newStreams) {
-                        stream["wsUrl"] = `ws://localhost:8000/api/media/source/stream/${stream.id}`;
-                    }
-                    setLiveStreams([...liveStreams, ...newStreams]);
+                    setLiveStreams(prevStreams => {
+                        const newStreams = response.data.filter(obj => obj && !isObjectInArray(prevStreams, obj.id));
+                        for (const stream of newStreams) {
+                            stream["wsUrl"] = `ws://localhost:8000/api/media/source/stream/${stream.id}`;
+                        }
+                        return [...prevStreams, ...newStreams];
+                    });
                 } else {
                     console.error('Error on fetching live streams: ', response);
                     showNotification(dispatch, "error", "An error occurred while fetching live video streams!")
@@ -93,7 +89,7 @@ export default function LiveStreamPanel(props) {
             { liveStreams &&
                 liveStreams.map((stream, index) => (
                   stream && (
-                      <Grid item xs={12} md={6} lg={6} key={index}>
+                      <Grid item xs={12} md={6} lg={6} key={stream.id}>
                           <div>
                               <StreamPlayer streamInfo={stream}
                                             onStreamRemove={() => handleRemoveStream(stream.id)}
