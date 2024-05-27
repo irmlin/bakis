@@ -3,7 +3,7 @@ import {showNotification, useMaterialUIController} from "../Context/MaterialUICo
 
 const axiosInstance = axios.create({
     baseURL:
-        "http://localhost:8000/api",
+        `http://${process.env.REACT_APP_BACKEND_IP}:8000/api`,
     headers: {
         "Content-Type": "multipart/form-data",
     },

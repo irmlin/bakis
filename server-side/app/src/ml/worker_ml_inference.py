@@ -54,11 +54,8 @@ class WorkerMLInference:
             ort.InferenceSession(self.__feature_extractor_onnx_path, providers=['CUDAExecutionProvider']))
         self.__transformer_session = (
             ort.InferenceSession(self.__transformer_onnx_path, providers=['CPUExecutionProvider']))
-        # signal.signal(signal.SIGINT, self.__terminate_process)
         while 1:
             try:
-                # TODO: timeout
-                # source_id, frame, success = self.__queue.get(block=True, timeout=0.1)
                 source_id, frame, success = self.__queue.get(block=True)
                 if source_id not in self.__batch_data.keys():
                     # Initialize new source
@@ -70,7 +67,6 @@ class WorkerMLInference:
                     self.__last_frame_hit.append(source_id)
 
                 self.__set_batch_ready(source_id, success)
-
                 self.__process_batch()
 
             except queue.Empty:
@@ -86,13 +82,10 @@ class WorkerMLInference:
             return
 
         scores = self.__infer()
-        # print(f'ML PREDICTED: {scores}')
         for i in range(self.__batch_size):
             for j, s in enumerate(self.__batch_data.keys()):
                 frames = self.__batch_data[s]['frames']
                 if len(frames) == 0 and s in self.__last_frame_hit and s not in self.__to_delete:
-                    # print(f'ML, SPECIAL. {s}')
-                    # Special case, were full batch was sent and then immediately success=False received
                     self.__on_done((s, None, None, None, False))
                     self.__to_delete.append(s)
                 if i >= len(frames):
@@ -100,7 +93,6 @@ class WorkerMLInference:
                     continue
                 frame_to_send = frames[i]
                 _, enc_frame = cv2.imencode(".jpg", frame_to_send, [int(cv2.IMWRITE_JPEG_QUALITY), 20])
-                # TODO: perhaps, if success==False, should simply sent 0 model scores.
                 is_final_frame = (s in self.__last_frame_hit and
                                   (len(frames) <= self.__batch_size) and
                                   (i + 1) == len(frames))
@@ -108,10 +100,7 @@ class WorkerMLInference:
                     self.__to_delete.append(s)
                 self.__on_done((s, frame_to_send, enc_frame, scores[j], not is_final_frame))
 
-        # print('ML SENT BATCH')
-        # self.print_batch_info()
         for s in self.__to_delete:
-            # print('ML DELETED SOURCE.', {s})
             self.__remove_finished_source(s)
         self.__to_delete = []
         self.__reset_batches()
@@ -122,12 +111,8 @@ class WorkerMLInference:
         print()
 
     def __remove_finished_source(self, source_id: int) -> None:
-        # print('ML, removing.')
-        # self.print_batch_info()
         del self.__batch_data[source_id]
         self.__last_frame_hit.remove(source_id)
-        # print('ML, after removing')
-        # self.print_batch_info()
 
     def __reset_batches(self):
         self.__batch_data = {source_id: {'frames': data['frames'][self.__batch_size:],

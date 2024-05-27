@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
@@ -32,7 +32,7 @@ class SettingsController:
             return self.settings_service.get_recipients(db=db)
 
         @router.post("/recipient", response_model=RecipientRead)
-        def add_recipient(current_user: Annotated[str, Depends(get_current_user)], email: str = Form(), db: Session = Depends(get_db)):
+        def add_recipient(current_user: Annotated[str, Depends(get_current_user)], email: Optional[str] = Form(None), db: Session = Depends(get_db)):
             return self.settings_service.add_recipient(db=db, email=email)
 
         @router.delete("/recipient/{recipient_id}")

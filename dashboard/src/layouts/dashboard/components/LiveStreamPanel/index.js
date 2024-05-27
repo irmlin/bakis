@@ -45,7 +45,7 @@ export default function LiveStreamPanel(props) {
                     setLiveStreams(prevStreams => {
                         const newStreams = response.data.filter(obj => obj && !isObjectInArray(prevStreams, obj.id));
                         for (const stream of newStreams) {
-                            stream["wsUrl"] = `ws://localhost:8000/api/media/source/stream/${stream.id}`;
+                            stream["wsUrl"] = `ws://${process.env.REACT_APP_BACKEND_IP}:8000/api/media/source/stream/${stream.id}`;
                         }
                         return [...prevStreams, ...newStreams];
                     });

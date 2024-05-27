@@ -34,8 +34,6 @@ class SourceService:
         self.file_size_limit_bytes = FileSize.GB
         # Object for creating objects shared across processes
         self.__manager = multiprocessing.Manager()
-        # TODO: could use a mp.Queue instead of Manager. Read streams on queue.Empty exception.
-        #  This way, could maintain worker interface of read_queue -> on_done.
         self.__shared_sources_dict = self.__manager.dict()
         # Active websocket connections
         self.__connections: Dict[int, List[WebSocket]] = {}
@@ -45,7 +43,7 @@ class SourceService:
         self.__sources_to_terminate = []
         self.__frames_buffer_size = 30
         self.__alarm_timeout = 3
-        self.__video_cache_seconds = 5
+        self.__video_cache_seconds = 10
         self.__accident_class_id = 0
         self.__alarm_score_thr = 0.8
         self.__thr_update_counter = 0
@@ -91,13 +89,17 @@ class SourceService:
                 shutil.copyfileobj(video_file.file, buffer)
             source_path = file_path
 
-        try:
-            video_cap = cv2.VideoCapture(source_path)
-            fps = video_cap.get(cv2.CAP_PROP_FPS)
-            width = video_cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-            height = video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f'Could not read video file, file must be .mp4 format!')
+        video_cap = cv2.VideoCapture(source_path)
+        fps = video_cap.get(cv2.CAP_PROP_FPS)
+        width = video_cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        height = video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        ret, _ = video_cap.read()
+        if not ret:
+            detail = 'Could not read stream, please provide a valid RTSP URL!' \
+                if source_create.source_type == SourceType.STREAM else \
+                'Could not read video file, must be in .mp4 format!'
+            raise HTTPException(status_code=400, detail=detail)
+
         source = Source(title=source_create.title, description=source_create.description,
                         file_path=source_path if source_create.source_type == SourceType.VIDEO else None,
                         stream_url=source_path if source_create.source_type == SourceType.STREAM else None,

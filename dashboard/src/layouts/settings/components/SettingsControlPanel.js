@@ -108,7 +108,7 @@ export default function SettingsControlPanel() {
           showNotification(dispatch, "success", "Sensitivity threshold saved!")
         } else {
             console.error('Error on updating threshold: ', response);
-            showNotification(dispatch, "error", "An error occurred while updating sensitivity threshold!")
+            showNotification(dispatch, "error", response.response.data.detail)
         }
     } else {
         console.error('No response from the server while updating threshold!');
@@ -130,7 +130,7 @@ export default function SettingsControlPanel() {
         showNotification(dispatch, "success", "Recipients list has been updated!")
       } else {
           console.error('Error on updating recipients list: ', response);
-          showNotification(dispatch, "error", "An error occurred while updating recipients list!")
+          showNotification(dispatch, "error", response.response.data.detail)
       }
     } else {
       console.error('No response from the server while adding recipient!');
